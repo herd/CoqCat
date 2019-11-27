@@ -113,7 +113,9 @@ A SC witness associated to an event structure and a SC execution is composed of 
 Definition sc_witness (E:Event_struct) (so:Rln Event) : Execution_witness :=
   mkew (so_ws so) (so_rfm E so).
 
-(** The definition of [AiSc] is exactly the same as the one of its module type [Archi], but it adds an extra hypothesis [ab_sc_compat] *)
+(** ** An SC architecture
+
+The definition of [AiSc] is exactly the same as the one of its module type [Archi], but it adds an extra hypothesis [ab_sc_compat] *)
 
 Module AiSc <: Archi.
 
@@ -136,12 +138,14 @@ Parameter abc  : Event_struct -> Execution_witness -> Rln Event.
 - The reflexive closure of read-from
 - The sequence of the program order and of the reflexive closure of read-from
 
-That means that the ordering enforced by the barriers should not be in contradiction with the program order, and should avoid the two following inconsistencies :
+This condition disallows the three following scenarios:
 
-- The barrier enforces an event [e] to occur before a write event [w], but there is a read event [r] occuring before [e] in program order and [r] reads the value written by [w]
-- The barrier enforces an event [e] to occur after a read [r], but there is a write event [w] occuring after [e] in program order and [r] reads the value written by [w]
+- An event [e1] must occur before an event [e2] according to the barrier, but [e2] must occur before [e1] according to the program order. Since we are on a
+SC architecture, all the program order is preserved an this situation creates
+a conflict.
+- An event [e] must occur before a write [w] according to the barrier, and a read [r] that reads the value written by [w] must occur before [e] according to the program order.
+- An read [r] must occur before an event [e] according to the barrier and reads a value written by a write [w], but [w] must occur after [e] according to program order.
 *)
-
 
 Parameter ab_sc_compat :
   forall E X, rel_incl (abc E X) (rel_seq (maybe (rf X)) (rel_seq (po_iico E) (maybe (rf X)))).
@@ -168,19 +172,36 @@ End AiSc.
 
 Import AiSc.
 
+(** ** Lemmas about SC executions
+
+The module [ScAx] takes an architecture as a parameter, and contains lemmas about SC executions *)
+
 Module ScAx (A:Archi).
 
 Definition bimpl (b1 b2:bool) : Prop:=
   if (negb b1) || b2 then True else False.
 
+(** This is an alias of boolean implication, aimed at the comparison of the global read-from relation of two architectures *)
+
 Definition rf_impl (rf1 rf2 : bool) :=
   bimpl rf1 rf2.
+
+(** This is an alias of set inclusion for any possible event structure, aimed at the comparison of the preserved program order of two architectures *)
 
 Definition ppo_incl (ppo1 ppo2 : Event_struct -> Rln Event) :=
   forall E, rel_incl (ppo1 E) (ppo2 E).
 
+(** This is an alias of set inclusion for any possible event structure and any possible execution witness, aimed at the comparison of the barrier relation of two architectures *)
+
 Definition ab_incl (ab1 ab2 : Event_struct -> Execution_witness -> Rln Event) :=
   forall E X, rel_incl (ab1 E X) (ab2 E X).
+
+(** We suppose that:
+
+- The preserved program order of [A] is included in the preserved program order of [AiSc] in any event structure
+- If the intra-threads read-froms are global on [A], they are global on [AiSc]
+- If the inter-threads read-froms are global on [A], they are global on [AiSc]
+- The barrier relation of [A] is include in the barrier relation of [AiSc] in any event structure and for any execution witness *)
 
 Hypothesis AwkAiSc :
   ppo_incl (A.ppo) (AiSc.ppo) /\
@@ -188,18 +209,26 @@ Hypothesis AwkAiSc :
   bimpl (A.inter) (AiSc.inter) /\
   ab_incl (A.abc) (AiSc.abc).
 
+(** We immport the basic facts about A and we build a weak memory model on it *)
+
 Module ABasic := Basic A dp.
 Import ABasic.
 Module AWmm := Wmm A dp.
 Import AWmm.
 Import A.
 
+(** We define the SC check condition, which is the acyclicity of the program order and of the happens-before relation. This corresponds to the ghb acyclicity part of the condition of the generic condition of validity. Indeed, on an SC architectures, there are no barriers, all the program order is preserved and the whole read-from relation is global *)
+
 Definition sc_check (E:Event_struct) (X:Execution_witness) : Prop :=
   acyclic (rel_union (po_iico E) (hb E X)).
 
+(** *** Validy of SC execution
+
+We show that given a sequential execution, the execution witness we can extract from it forms a valid execution on a SC architecture *)
+
 Section sc_valid.
 
-(** * A SC witness is a valid one *)
+(** The domain and the range of a write serialization extracted from a sequential execution are included in the events of the event structure of this sequential execution *)
 
 Lemma so_ws_dom_ran_wf :
   forall E so l,
@@ -218,6 +247,8 @@ inversion Hx as [e Hd | e Hr].
   unfold ran in Hr; unfold In in Hr; unfold rrestrict in Hr.
   destruct Hr as [y [Hso [Hmy Hmx]]]; apply Hmx.
 Qed.
+
+(** The write serialization extracted from a sequential execution is a well-formed write serialization *)
 
 Lemma sc_ws_wf :
   forall E so,
@@ -288,6 +319,8 @@ Qed.
 Ltac destruct_lin H :=
   destruct H as [Hdr [Htrans [Hac Htot]]].
 
+(** In the execution witness extracted from a sequential execution, no read event reads a value written by a write event that occurs later in the program order *)
+
 Lemma sc_caus_wf :
   forall E so,
   seq_exec E so ->
@@ -308,13 +341,14 @@ inversion Hin as [Hrf | Hdp].
   destruct Hdp as [Hrx [Hwy Hpo_xy]]; apply Hpo_xy.
 Qed.
 
+(** The read-from relation extracted from a sequential execution is a well-formed read-from relation *)
+
 Lemma sc_rf_wf :
   forall E so,
-  rel_incl (ls E) (po_iico E) ->
   seq_exec E so ->
   rfmaps_well_formed E (events E) (so_rfm E so).
 Proof.
-intros E so Hdp Hsc_ord; unfold rfmaps_well_formed; split.
+intros E so (*Hdp*) Hsc_ord; unfold rfmaps_well_formed; split.
   destruct Hsc_ord as [Hlin Hincl]; destruct_lin Hlin.
   intros er Her; generalize (so_rfm_init E so er Her);
   intros [ew [Hew Hrfw]]; exists ew.
@@ -341,7 +375,9 @@ destruct (eqEv_dec w1 w2) as [Hy | Hn].
         apply sym_eq; apply (Hmax_w2x w1); split; auto.
 Qed.
 
- Lemma so_ac_pio :
+(** For any location, there are no contradictions between a sequential execution and the program order on the events reading from/writing to this location *)
+
+Lemma so_ac_pio :
   forall E so,
   seq_exec E so ->
   acyclic
@@ -362,7 +398,9 @@ unfold rel_incl; unfold pio;
 apply Hpo.
 Qed.
 
- Lemma so_ac_pio_llh :
+(** For any location, there are no contradictions between a sequential execution and the program order on the events reading from/writing to the same location and to the pairs of events for which at least one of the event is a write *)
+
+Lemma so_ac_pio_llh :
   forall E so,
   seq_exec E so ->
   acyclic
@@ -374,6 +412,8 @@ eapply incl_ac with (rel_union so (pio E)).
     right; unfold pio; destruct H as [? [? ?]]]; auto.
 apply so_ac_pio; auto.
 Qed.
+
+(** The happens-before extracted from a sequential execution is included in the sequential execution itself *)
 
 Lemma hb_in_so :
   forall E so,
@@ -419,6 +459,8 @@ destruct (eqEv_dec x y) as [Heq | Hdiff].
   destruct Hws as [Hso Hrest]; apply Hso.
 Qed.
 
+(** For any given location, there are no conflicts between the happens-before relation extracted from a sequential execution and the program order restricted to events reading from/writing to this location *)
+
 Lemma sc_hb_wf :
   forall E so,
   seq_exec E so ->
@@ -431,6 +473,10 @@ eapply ac_incl;
     apply rel_incl_right; apply hb_in_so;
       apply Hsc_ord].
 Qed.
+
+(** For any given location, there are no conflicts between the happens-before relation extracted from a sequential execution and the program order restricted to events reading from/writing to this location, and to pairs of events for which at least one of the events is a write
+
+This condition corresponds to the [uniproc] condition *)
 
 Lemma sc_hb_llh_wf :
   forall E so,
@@ -445,6 +491,8 @@ eapply ac_incl;
       apply Hsc_ord].
 Qed.
 
+(** The read-from relation extracted from a sequential execution is included in the sequential execution *)
+
 Lemma sc_rf_in_so :
   forall E so,
   rel_incl (rf (sc_witness E so)) so.
@@ -453,6 +501,8 @@ intros E so; unfold rel_incl; unfold sc_witness; simpl; unfold so_rfm.
 intros e1 e2 Hin; destruct Hin as [? [[? [Hso ?]] Hmax]]; exact Hso.
 Qed.
 
+(** The write serialization extracted from a sequential execution is included in the sequential execution *)
+
 Lemma sc_ws_in_so :
   forall E so,
   rel_incl (ws (sc_witness E so)) so.
@@ -460,6 +510,8 @@ Proof.
 intros E so; unfold sc_witness; simpl; unfold so_ws.
 intros e1 e2 Hin; destruct Hin as [Hso Hrest]; exact Hso.
 Qed.
+
+(** The from-read relation extracted from a sequential execution is included in the sequential execution *)
 
 Lemma sc_fr_in_so :
   forall E so,
@@ -499,6 +551,8 @@ destruct (eqEv_dec e1 e2) as [Heq | Hdiff].
     contradiction.
 Qed.
 
+(** In any event structure, the preserved program order of [A] is included in any sequential execution over this event structure *)
+
 Lemma sc_ppo_in_so :
   forall E so,
   seq_exec E so ->
@@ -509,6 +563,14 @@ intros E so Hsc_ord e1 e2 Hin_c.
   destruct Hsc_ord as [Hlin Hincl]; apply Hincl.
   apply A.ppo_valid ; exact Hin_c.
 Qed.
+
+(** In any event structure, the sequence of:
+
+- The reflexive closure of read-from
+- The program order
+- The reflexive closure of read-from
+
+is included in the sequential execution *)
 
 Lemma rf_po_rf_in_so :
   forall E so x y,
@@ -528,6 +590,8 @@ inversion Hxz as [Hrfxz | Heqxz]; inversion Hey as [Hrfey | Heqey].
     destruct Hrfey as [? [[? [Hsoey ?]] ?]]; apply Htrans with e; split; auto.
   rewrite Heqxz; rewrite <- Heqey; auto.
 Qed.
+
+(** For any event structure, the union of the barrier relation, write serialization, from-read relation, and preserved program order of the architecture [A] is included in any sequential execution over this structure *)
 
 Lemma bot_ghb_in_so :
   forall E so,
@@ -552,6 +616,8 @@ unfold rel_incl; intros E so Hsc_ord e1 e2 Hx.
   (*ppo*)
     generalize Hppo; apply sc_ppo_in_so; apply Hsc_ord.
 Qed.
+
+(** For any event structure, the global happens-before of the architecture [A] is included in any sequential execution over this structure *)
 
 Lemma sc_ghb_in_so :
   forall E so,
@@ -594,6 +660,8 @@ case_eq inter; case_eq intra; unfold ghb in Hx.
   apply Hsc_ord.
 Qed.
 
+(** For any event structure, there are no contradiction between the global happens-before of the architecture [A] and any sequential execution over the event structure *)
+
 Lemma sc_exec_wf :
   forall E so,
   seq_exec E so ->
@@ -604,6 +672,8 @@ eapply incl_ac;
   [apply sc_ghb_in_so; apply Hsc_ord |
     destruct Hsc_ord as [Hlin Hincl]; eapply lin_strict_ac; apply Hlin].
 Qed.
+
+(** For any event structure, the execution witness extracted from any sequential execution over the event structure respects the out-of-[thin]-air condition *)
 
 Lemma sc_exec_thin :
   forall E so,
@@ -627,6 +697,9 @@ destruct_lin Hlin.
 apply (Hac x Hc).
 Qed.
 
+(** In a well-formed event structure, a execution witness extracted from any sequential execution over this structure is a valid execution on [A]. *)
+
+
 Lemma sc_witness_valid :
   forall E so,
   well_formed_event_structure E ->
@@ -635,9 +708,8 @@ Lemma sc_witness_valid :
 Proof.
 intros E so Hwf Hsc_ord.
 unfold valid_execution; unfold sc_witness; simpl.
- split;  [eapply sc_ws_wf; apply Hsc_ord |
-  split; [apply sc_rf_wf; [ | apply Hsc_ord]  | ]].
-intros x y [? [? ?]]; auto.
+ split; [eapply sc_ws_wf; apply Hsc_ord |
+  split; [apply sc_rf_wf; [apply Hsc_ord]  | ]].
 
 split; fold (sc_witness E so);
    [apply sc_hb_llh_wf; apply Hsc_ord |

@@ -421,8 +421,8 @@ Definition no_intervening_write (e1 e2:Event) (s:Rln Event): Prop :=
 *)
 
 (** Takes an event structure as a parameter and returns a relation that relates
-    any write affecting a given location to the reads following it in program
-    order reading the same location
+    any read from a given location to the writes following it in program
+    order affecting the same location
 *)
 
 Definition ls (E:Event_struct) : Rln Event :=
