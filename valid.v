@@ -16,44 +16,93 @@ From CoqCat Require Import util.
 From CoqCat Require Import wmm.
 From CoqCat Require Import basic.
 From CoqCat Require Import hierarchy.
+From CoqCat Require Import sc.
 Import OEEvt.
 Set Implicit Arguments.
 
+(** * Validity
+
+The module [Valid] takes an architecture and a dependencies relation as parameters *)
+
 Module Valid (A:Archi) (dp : Dp).
+
+(** We suppose that for any event structure, the dependency relation is included in the preserved program order *)
+
 Import dp.
 
 Hypothesis dp_ppo :
   forall E, rel_incl (dp E) (A.ppo E).
 
-(** ** Definition *)
+(** ** Definitions *)
+
+(** Create a relation that relates the event [er] to all the write events of
+the event structure E that precede [er] in a relation [r] *)
 
 Definition previous_writes (E:Event_struct) (r : Rln Event) (er:Event) :=
   fun ew => writes E ew /\ r ew er /\ loc ew = loc er.
+
+(* begin hide *)
 Set Implicit Arguments.
+(* end hide *)
+
+(** Given a set [xs] and a relation [r] on this set, the set of maximum elements
+is such that :
+
+- all its elements belong to [xs]
+- for any element [x] of the set of maximum elements, if there is an element [x'] belonging to [xs], then [x = x']
+
+Simply put, all the elements of [xs] that are related to no elements or to themselves.
+*)
+
 Definition maximal_elements (A:Set) (xs:set A) (r:Rln A) : set A :=
   fun x => In _ xs x /\ forall x', In _ xs x'/\ r x x' -> (x = x').
+
+(* begin hide *)
 Unset Implicit Arguments.
+(* end hide *)
+
+(** A partial order on the events of an event structure is a valid partial execution on the architecture A if the preserved program order and the per-location program order are both included in the linear extension of this partial order *)
 
 Definition vexec (E:Event_struct) (so:Rln Event) : Prop :=
   partial_order so (events E) /\
   acyclic (rel_union (A.ppo E) (LE so)) /\
   acyclic (rel_union (pio_llh E) (LE so)).
 
-(** * Building a SC witness *)
+(** ** Building a SC witness
 
-(** ** sc rfmaps *)
+We build an SC execution witness from a valid partial execution on the events of an event structure *)
+
+(** *** read-from of SC execution *)
+
+(** Two events are related by the read-from relation extracted from the valid partial execution if:
+
+- they are events from the domain or the range of the linear extension of the valid partial execution
+- the first one is a write event and the second one is a read event
+- they access the same location
+- they read/write the same value
+- the first event belongs to the maximal elements of the previous writes (w.r.t. to the valid partial execution) of the second event. Simply put, the first event
+is the most recent write before the second event in the valid partial execution *)
+
 Definition so_rfm (E:Event_struct) (so : Rln Event) :=
   fun ew => fun er =>
     (rfmaps (udr (LE so))) ew er /\
     (maximal_elements
        (previous_writes E (LE so) er) (LE so)) ew.
+
+(** For any partial order on an event structure, for every read event in this structure, there is a write such that the read-from extracted from the valid partial execution relates the write event to the read event *)
+
 Hypothesis so_rfm_init :
   forall E so,
   forall er, In _ (reads E) er ->
     exists ew, (In _ (events E) ew /\ so_rfm E so ew er)
       (*\/ (init E ew)*).
 
-(** ** sc ws *)
+(** *** write serialization of sequential execution *)
+
+(** Two events are related by the write serialization extracted from the SC if:
+
+- They are related by the valid partial execution
+- They are both writes to the same location *)
 
 Definition so_ws (so:Rln Event) : (Rln Event) :=
     fun e1 => fun e2 =>
@@ -61,34 +110,71 @@ Definition so_ws (so:Rln Event) : (Rln Event) :=
     exists l, In _ (writes_to_same_loc_l (udr (LE so)) l) e1 /\
       In _ (writes_to_same_loc_l (udr (LE so)) l) e2.
 
-(** ** sc sync *)
+(** ** valid partial execution synchronisation
+
+[so_sync] is the intersection between the valid partial execution and a relation [synchro] given as a parameter
+*)
 
 Definition so_sync (so:Rln Event) (synchro:Rln Event) : Rln Event :=
   fun e1 e2 => so e1 e2 /\ synchro e1 e2.
 
-(** ** Definition of a witness *)
+(** ** Definition of a valid execution witness
+
+Given a valid partial execution on an event structure, we can build an execution witness valid on an architecture A by combining the read-from relation extracted using [so_rfm] and the write serialization extracted using [so_ws]
+ *)
 
 Definition vwitness (E:Event_struct) (so:Rln Event) : Execution_witness :=
   mkew (so_ws so) (so_rfm E so).
 
+(** ** An A-compatible architecture
+
+The definition of [AiSc] is exactly the same as the one of its module type [Archi], but it adds an extra hypothesis [ab_sc_compat]. The goal of this extra hypothesis is to ensure that the barrier relation will not enforce an ordering on events that would be incoherent with the architecture A *)
+
 Module AiSc <: Archi.
+
+(** The preserved program order is arbitrary but it respects the properties defined in [Archi] *)
+
 Parameter ppo : Event_struct -> Rln Event.
+
 Hypothesis ppo_valid : forall E, rel_incl (ppo E) (po_iico E).
+
 Hypothesis ppo_fun :
   forall E s x y,
   ppo E x y /\ s x /\ s y <->
   ppo (mkes (Intersection Event (events E) s) (rrestrict (iico E) s)) x y.
+
+(** The global read-from is arbitrary *)
+
 Parameter inter : bool.
 Parameter intra : bool.
+
+(** The barrier relation is arbitrary but it respects the properties defined in [Archi] and the extra hypothesis [ab_sc_compat] *)
+
 Parameter abc  : Event_struct -> Execution_witness -> Rln Event.
+
+(** The barrier relation must be included in the sequence of:
+
+- The reflexive closure of read-from
+- The sequence of the preserved program order of [A] and of the reflexive closure of read-from
+
+This condition disallows the three following scenarios:
+
+- An event [e1] must occur before an event [e2] according to the barrier, but [e2] must occur before [e1] according to the preserved program order.
+- An event [e] must occur before a write [w] according to the barrier, and a read [r] that reads the value written by [w] must occur before [e] according to the preserved program order.
+- An read [r] must occur before an event [e] according to the barrier and reads a value written by a write [w], but [w] must occur after [e] according to preserved program order.
+*)
+
 Parameter ab_sc_compat :
   forall E X, rel_incl (abc E X) (rel_seq (maybe (rf X)) (rel_seq (A.ppo E) (maybe (rf X)))).
+
 Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   forall x y, well_formed_event_structure E ->
   rfmaps_well_formed E (events E) (rf X) ->
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
+
 Hypothesis ab_incl :
   forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+
 Hypothesis ab_fun :
   forall E X s x y,
   well_formed_event_structure E ->
@@ -97,19 +183,46 @@ Hypothesis ab_fun :
   abc (mkes
    (Intersection Event (events E) s) (rrestrict (iico E) s))
     (mkew (rrestrict (ws X) s) (rrestrict (rf X) s)) x y).
+
 Parameter stars : Event_struct -> set Event.
+
 End AiSc.
 
 Import AiSc.
+
+(** ** Lemmas about the executions on A 
+
+The module [ScAx] contains definitions of properties about the executions on A *)
+
 Module ScAx.
+
 Definition bimpl (b1 b2:bool) : Prop:=
   if (negb b1) || b2 then True else False.
+
+(** This is an alias of boolean implication, aimed at the comparison of the global read-from relation of two architectures *)
+
 Definition rf_impl (rf1 rf2 : bool) :=
   bimpl rf1 rf2.
+
+(** This is an alias of relation inclusion for any possible event structure, aimed at the comparison of the preserved program order of two architectures *)
+
 Definition ppo_incl (ppo1 ppo2 : Event_struct -> Rln Event) :=
   forall E, rel_incl (ppo1 E) (ppo2 E).
+
+(** This is an alias of relation inclusion for any possible event structure and any possible execution witness, aimed at the comparison of the barrier relation of two architectures *)
+
 Definition ab_incl (ab1 ab2 : Event_struct -> Execution_witness -> Rln Event) :=
   forall E X, rel_incl (ab1 E X) (ab2 E X).
+
+(** We suppose that:
+
+- The preserved program order of [A] is included in the preserved program order of [AiSc] in any event structure
+- If the intra-threads read-froms are global on [A], they are global on [AiSc]
+- If the inter-threads read-froms are global on [A], they are global on [AiSc]
+- The barrier relation of [A] is include in the barrier relation of [AiSc] in any event structure and for any execution witness
+
+I.e. we suppose that [A] is weaker than [AiSc] *)
+
 Hypothesis AwkAiSc :
   ppo_incl (A.ppo) (AiSc.ppo) /\
   bimpl (A.intra) (AiSc.intra) /\
@@ -120,14 +233,24 @@ Import ABasic.
 Module AWmm := Wmm A dp.
 Import AWmm.
 Import A.
+
+(** [ahb] is another name for [mhb] *)
+
 Definition ahb E X :=
   rel_union (rel_union (AWmm.mrf X) (fr E X)) (ws X).
+
+(** We define the [sc_check] condition, which is the acyclicity of the preserved program order and the [ahb] relation. This union corresponds to [ghb] except for the barriers that are missing. *)
+
 Definition sc_check (E:Event_struct) (X:Execution_witness) : Prop :=
   acyclic (rel_union (A.ppo E) (ahb E X)).
 
+(** *** Validity of an execution 
+
+We show that an execution extracted from a valid partial execution for an architecture [A] is valid on the memory model based on architecture [A] *)
+
 Section sc_valid.
 
-(** * A SC witness is a valid one *)
+(** The domain and the range of a write serialization extracted from a valid partial execution are included in the events of the event structure of this valid partial execution *)
 
 Lemma so_ws_dom_ran_wf :
   forall E so l,
@@ -146,6 +269,8 @@ inversion Hx as [e Hd | e Hr].
   unfold ran in Hr; unfold In in Hr; unfold rrestrict in Hr.
   destruct Hr as [y [Hso [Hmy Hmx]]]; apply Hmx.
 Qed.
+
+(** The write serialization extracted from a valid partial execution is a well-formed write serialization *)
 
 Lemma sc_ws_wf :
   forall E so,
@@ -225,13 +350,14 @@ Qed.
 Ltac destruct_lin H :=
   destruct H as [Hdr [Htrans [Hac Htot]]].
 
+(** The read-from relation extracted from a valid partial execution is a well-formed read-from relation *)
+
 Lemma sc_rf_wf :
   forall E so,
-  rel_incl (ls E) (po_iico E) ->
   vexec E so ->
   rfmaps_well_formed E (events E) (so_rfm E so).
 Proof.
-intros E so Hdp Hsc_ord; unfold rfmaps_well_formed; split.
+intros E so Hsc_ord; unfold rfmaps_well_formed; split.
   destruct Hsc_ord as [Hpart Hincl].
   assert (Included _ (events E) (events E)) as Htriv.
     intros x Hx; auto.
@@ -269,6 +395,8 @@ destruct (eqEv_dec w1 w2) as [Hy | Hn].
         apply (Hmax_w1x w2); split; auto.
         apply sym_eq; apply (Hmax_w2x w1); split; auto.
 Qed.
+
+(** The happens-before extracted from a valid partial execution is included in the linear extension of the valid partial execution *)
 
 Lemma hb_in_so :
   forall E so,
@@ -319,6 +447,10 @@ destruct (eqEv_dec x y) as [Heq | Hdiff].
   destruct Hws as [Hso Hrest]; apply Hso.
 Qed.
 
+(** For any given location, there are no conflicts between the happens-before relation extracted from a valid partial execution and the program order restricted to events reading from/writing to this location, and to pairs of events for which at least one of the events is a write.
+
+This condition corresponds to the [uniproc] condition *)
+
 Lemma sc_hb_llh_wf :
   forall E so,
   vexec E so ->
@@ -334,6 +466,8 @@ eapply ac_incl;
 rewrite union_triv; auto.
 Qed.
 
+(** The read-from relation extracted from a valid partial execution is included in the linear extension of the valid partial execution *)
+
 Lemma sc_rf_in_so :
   forall E so,
   rel_incl (rf (vwitness E so)) (LE so).
@@ -342,6 +476,8 @@ intros E so; unfold rel_incl; unfold vwitness; simpl; unfold so_rfm.
 intros e1 e2 Hin; destruct Hin as [? [[? [Hso ?]] Hmax]]; exact Hso.
 Qed.
 
+(** The write serialization extracted from a valid partial execution is included in the valid partial execution *)
+
 Lemma sc_ws_in_so :
   forall E so,
   rel_incl (ws (vwitness E so)) (LE so).
@@ -349,6 +485,8 @@ Proof.
 intros E so; unfold vwitness; simpl; unfold so_ws.
 intros e1 e2 Hin; destruct Hin as [Hso Hrest]; exact Hso.
 Qed.
+
+(** The from-read relation extracted from a valid partial execution is included in the linear extension of the valid partial execution *)
 
 Lemma sc_fr_in_so :
   forall E so,
@@ -392,6 +530,8 @@ destruct (eqEv_dec e1 e2) as [Heq | Hdiff].
     contradiction.
 Qed.
 
+(** In any event structure, the preserved program order of [AWmm] is included in any linear extension of a valid partial execution over this event structure *)
+
 Lemma sc_ppo_in_so :
   forall E so,
   well_formed_event_structure E ->
@@ -418,6 +558,14 @@ intros E so Hwf Hsc_ord e1 e2 Hin_c.
     apply trc_ind with e2; apply trc_step; [left | right]; auto.
   generalize (Hincl e1 Hc); intro Ht; inversion Ht.
 Qed.
+
+(** In any event structure, the sequence of:
+
+- The reflexive closure of read-from
+- The program order
+- The reflexive closure of read-from
+
+is included in the any linear extension of any valid partial execution over this event structure *)
 
 Lemma rf_po_rf_in_so :
   forall E so x y,
@@ -446,6 +594,8 @@ inversion Hxz as [Hrfxz | Heqxz]; inversion Hey as [Hrfey | Heqey].
   rewrite Heqxz; rewrite <- Heqey; auto.
   apply (sc_ppo_in_so E so Hwf Hse z e Hze).
 Qed.
+
+(** For any event structure, the union of the barrier relation, write serialization, from-read relation, and preserved program order of the architecture [AWmm] is included in any linear extension of a valid partial execution over this structure *)
 
 Lemma bot_ghb_in_so :
   forall E so,
@@ -479,6 +629,8 @@ unfold rel_incl; intros E so Hwf Hsc_ord e1 e2 Hx.
     generalize (OE Htriv Hpart); intros [Hinc Hle].
     generalize Hwf Hsc_ord e1 e2 Hppo; apply sc_ppo_in_so; split; auto.
 Qed.
+
+(** For any well-formed event structure, the global happens-before of the architecture [AWmm] is included in any linear extension of a valid partial execution over this structure *)
 
 Lemma sc_ghb_in_so :
   forall E so,
@@ -518,6 +670,8 @@ case_eq inter; case_eq intra; unfold ghb in Hx.
   generalize Hx; apply (bot_ghb_in_so); auto.
 Qed.
 
+(** For any event structure, the global happens-before on the memory model [Awmm] is always acyclic on the execution witness extracted of the valid partial execution *)
+
 Lemma sc_exec_wf :
   forall E so,
   well_formed_event_structure E ->
@@ -533,6 +687,8 @@ eapply incl_ac;
   [apply sc_ghb_in_so; auto |
     eapply lin_strict_ac; apply Hle].
 Qed.
+
+(** For any event structure, the execution witness extracted from any valid partial execution over the event structure respects the out-of-[thin]-air condition *)
 
 Lemma sc_exec_thin :
   forall E so,
@@ -567,6 +723,10 @@ destruct_lin Hle.
 apply (Hac x Hc).
 Qed.
 
+(** In a well-formed event structure, an execution witness extracted from any valid execution witness is a valid execution on [AWmm].
+
+I.e. An execution extracted from a partial order to an execution valid on [A] is valid on [A] *)
+
 Lemma sc_witness_valid :
   forall E so,
   well_formed_event_structure E ->
@@ -574,14 +734,21 @@ Lemma sc_witness_valid :
   valid_execution E (vwitness E so).
 Proof.
 intros E so Hwf Hsc_ord.
-unfold valid_execution; unfold vwitness; simpl.
- split;  [eapply sc_ws_wf; apply Hsc_ord |
-  split; [apply sc_rf_wf; [ | apply Hsc_ord]  | ]].
-intros x y [? [? ?]]; auto.
-split; fold (vwitness E so);
-   [apply sc_hb_llh_wf; apply Hsc_ord |
-    split; [|apply sc_exec_wf; auto]].
-apply sc_exec_thin; auto.
+unfold valid_execution. simpl.
+split.
+(* write serialization is well-formed *)
+{ eapply sc_ws_wf; auto. }
+split.
+(* read-from is well-formed *)
+{ eapply sc_rf_wf; auto. }
+split.
+(* uniprocessor condition *)
+{ eapply sc_hb_llh_wf; auto. }
+split.
+(* out-of-thin-air condition *)
+{ eapply sc_exec_thin; auto. }
+(* ghb is acyclic *)
+{ apply sc_exec_wf; auto. }
 Qed.
 
 (*An SC witness sc checks *)
