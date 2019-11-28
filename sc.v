@@ -20,9 +20,7 @@ Set Implicit Arguments.
 
 (** * Sequentially consistent execution
 
-In this module, we define a sequentially consitent execution
-
-TODO: This description of the module needs to be a little bit mor detailed *)
+In this module, we define a notion of sequential execution and two different possible implementation of a sequentially consistant memory models *)
 
 Module Sc (dp : Dp).
 Import dp.
@@ -70,14 +68,14 @@ We show how to build an execution witness (a read-from relation and a write seri
 
 (** *** read-from of SC execution *)
 
-(** Two events are related by the read-from relation extracted from the SC execution if:
+(** Two events are related by the read-from relation extracted from the sequential execution if:
 
-- They are events from the domain or the range of the SC execution
-- The first one is a write event and the second one is a read event
-- They access the same location
-- They read/write the same value
-- The first event belongs to the maximal elements of the previous writes (w.r.t. to the SC execution) of the second event. Simply put, the first event
-is the most recent write before the second event in the SC execution *)
+- they are events from the domain or the range of the sequential execution
+- the first one is a write event and the second one is a read event
+- they access the same location
+- they read/write the same value
+- the first event belongs to the maximal elements of the previous writes (w.r.t. to the sequential execution) of the second event. Simply put, the first event
+is the most recent write before the second event in the sequential execution *)
 
 Definition so_rfm (E:Event_struct) (so : Rln Event) :=
   fun ew => fun er =>
@@ -85,18 +83,18 @@ Definition so_rfm (E:Event_struct) (so : Rln Event) :=
     (maximal_elements
        (previous_writes E so er) so) ew.
 
-(** For any SC execution on a structure of event, for every read event in this structure, there is a write such that the read-from extracted from the SC execution relates the write event to the read event *)
+(** For any sequential execution on a event structure, for every read event in this structure, there is a write such that the read-from extracted from the sequential execution relates the write event to the read event *)
 
 Hypothesis so_rfm_init :
   forall E so,
   forall er, In _ (reads E) er ->
-    exists ew, In _ (events E) ew /\ so_rfm E so ew er.
+             exists ew, In _ (events E) ew /\ so_rfm E so ew er .
 
-(** ** write serialization of SC execution *)
+(** *** write serialization of sequential execution *)
 
-(** Two events are related by the write serialization extracted from the SC if:
+(** Two events are related by the write serialization extracted from the sequential execution if:
 
-- They are related by the SC execution
+- They are related by the sequential execution
 - They are both writes to the same location *)
 
 Definition so_ws (so:Rln Event) : (Rln Event) :=
@@ -107,7 +105,7 @@ Definition so_ws (so:Rln Event) : (Rln Event) :=
 
 (** ** Definition of a SC witness
 
-A SC witness associated to an event structure and a SC execution is composed of the read-from relation and write serialization extracted from the SC execution.
+A SC witness associated to an event structure and a sequential execution is composed of the read-from relation and write serialization extracted from the sequential execution.
 *)
 
 Definition sc_witness (E:Event_struct) (so:Rln Event) : Execution_witness :=
@@ -115,9 +113,11 @@ Definition sc_witness (E:Event_struct) (so:Rln Event) : Execution_witness :=
 
 (** ** An SC-compatible architecture
 
-The definition of [AiSc] is exactly the same as the one of its module type [Archi], but it adds an extra hypothesis [ab_sc_compat] *)
+The definition of [AiSc] is exactly the same as the one of its module type [Archi], but it adds an extra hypothesis [ab_sc_compat]. The goal of this extra-hypothesis is to ensure that the barrier relation will not enforce an ordering on events that would be incoherent with an SC architecture *)
 
 Module AiSc <: Archi.
+
+(** The preserved program order of the architecture is arbitrary but it respect the properties defined in [Archi] *)
 
 Parameter ppo : Event_struct -> Rln Event.
 
@@ -128,8 +128,12 @@ Hypothesis ppo_fun :
   ppo E x y /\ s x /\ s y <->
   ppo (mkes (Intersection Event (events E) s) (rrestrict (iico E) s)) x y.
 
+(** The global read-from relation is arbitrary *)
+
 Parameter inter : bool.
 Parameter intra : bool.
+
+(** The barrier relation is arbitrary but it respects the properties defined in [Archi] and the extra hypothesis [ab_sc_compat] *)
 
 Parameter abc  : Event_struct -> Execution_witness -> Rln Event.
 
@@ -186,12 +190,12 @@ Definition bimpl (b1 b2:bool) : Prop:=
 Definition rf_impl (rf1 rf2 : bool) :=
   bimpl rf1 rf2.
 
-(** This is an alias of set inclusion for any possible event structure, aimed at the comparison of the preserved program order of two architectures *)
+(** This is an alias of relation inclusion for any possible event structure, aimed at the comparison of the preserved program order of two architectures *)
 
 Definition ppo_incl (ppo1 ppo2 : Event_struct -> Rln Event) :=
   forall E, rel_incl (ppo1 E) (ppo2 E).
 
-(** This is an alias of set inclusion for any possible event structure and any possible execution witness, aimed at the comparison of the barrier relation of two architectures *)
+(** This is an alias of relation inclusion for any possible event structure and any possible execution witness, aimed at the comparison of the barrier relation of two architectures *)
 
 Definition ab_incl (ab1 ab2 : Event_struct -> Execution_witness -> Rln Event) :=
   forall E X, rel_incl (ab1 E X) (ab2 E X).
@@ -201,7 +205,9 @@ Definition ab_incl (ab1 ab2 : Event_struct -> Execution_witness -> Rln Event) :=
 - The preserved program order of [A] is included in the preserved program order of [AiSc] in any event structure
 - If the intra-threads read-froms are global on [A], they are global on [AiSc]
 - If the inter-threads read-froms are global on [A], they are global on [AiSc]
-- The barrier relation of [A] is include in the barrier relation of [AiSc] in any event structure and for any execution witness *)
+- The barrier relation of [A] is include in the barrier relation of [AiSc] in any event structure and for any execution witness 
+
+I.e. we suppose that [A] is weaker than [AiSc] *)
 
 Hypothesis AwkAiSc :
   ppo_incl (A.ppo) (AiSc.ppo) /\
@@ -570,7 +576,7 @@ Qed.
 - The program order
 - The reflexive closure of read-from
 
-is included in the sequential execution *)
+is included in any sequential execution over this event structure *)
 
 Lemma rf_po_rf_in_so :
   forall E so x y,
@@ -660,7 +666,7 @@ case_eq inter; case_eq intra; unfold ghb in Hx.
   apply Hsc_ord.
 Qed.
 
-(** For any event structure, there are no contradiction between the global happens-before of the architecture [AWmm] and any sequential execution over the event structure *)
+(** For any event structure, the global happens-before on the memory model [Awmm] is always acyclic on the execution witness extracted of the sequential execution *)
 
 Lemma sc_exec_wf:
   forall E so,
@@ -698,7 +704,7 @@ destruct_lin Hlin.
 apply (Hac x Hc).
 Qed.
 
-(** In a well-formed event structure, a execution witness extracted from any sequential execution over this structure is a valid execution on [AWmm]. 
+(** In a well-formed event structure, an execution witness extracted from any sequential execution over this structure is a valid execution on [AWmm].
 
 I.e. an SC execution is valid on any architecture *)
 
@@ -723,8 +729,8 @@ split.
 (* out-of-thin-air condition *)
 { eapply sc_exec_thin; auto. }
 (* ghb is acyclic *)
-{ apply sc_exec_wf. auto. }
-Qed. 
+{ apply sc_exec_wf; auto. }
+Qed.
 
 (** *** SC executions SC-check *)
 
@@ -1306,7 +1312,7 @@ induction Hxy as [x y z Hnc | x y z Hac | x y z Hbc].
 Qed.
 
 (** It is not exactly clear what this represents, and it seems to be left as a parameter everywhere. Needs further documentation *)
- 
+
 (*
 Hypothesis ab_fun :
   forall E X s x y,
