@@ -20,7 +20,11 @@ Set Implicit Arguments.
 
 (** * Sequentially consistent execution
 
-In this module, we define a notion of sequential execution and two different possible implementation of a sequentially consistant memory models *)
+In this module, we define 
+- A notion of sequential execution
+- A way to extract an SC execution witness from a sequential execution
+- Two different possible implementation of a sequentially consistant memory models
+- Lemmas that relate these three notions together *)
 
 Module Sc (dp : Dp).
 Import dp.
