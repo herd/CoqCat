@@ -21,35 +21,59 @@ Require Import Classical_Prop.
 Import OEEvt.
 Set Implicit Arguments.
 
+(** * DRF Guarantee 
+
+The goal of this module is to prove the DRF guarantee, which states that:
+
+If all the executions valid on the SC memory model have all their races covered by a synchronisation relation, then all the executions of the program behave according to the SC memory model *)
+
 Module DataRaceFree (A1 A2: Archi) (dp:Dp).
-Module Wk := (* Hierarchy.*)Weaker A1 A2 dp.
+
+(** We import facts about the hierarchical relation between A1 and A2, including the memory model associated to the two architectures *)
+
+Module Wk := Weaker A1 A2 dp.
 Import Wk.
+
+(** We import facts about the validity of executions on the stronger architecture A2 *)
+
 Module VA2 := Valid A2 dp.
 Import VA2.
 Import VA2.ScAx.
+
+(** We import the abstract notion of covering relation that would preserve validity of executions from A1 to A2 *)
+
 Module Covering := Covering A1 A2 dp.
 Import Covering.
+
+(** We import basic facts about the architecture [A2] *)
+
 Module A2Basic := Basic A2 dp.
 
-About Valid.
+(** ** [happens_before] 
 
-(* Suppositions dans cette théorie
-
-- On a deux architectures A1 et A2
-- A1 ≤ A2
+This module type defines the [happens_before] relation (which is different from the happens-before relation [hb], called the communication relation in (A Shared Memory Poetics, Jade Alglave, 2010)), which depends on a synchronisation relation.
 *)
+
 Module Type HappensBefore.
+
+(** We have an arbitrary synchronisation relation on the events of an execution *)
 
 Parameter sync : Event_struct -> Execution_witness -> Rln Event.
 
-About po_iico.
+(** The [happens_before] relation is the transitive closure of the union of:
+
+- The program order
+- The synchronisation relation *)
 
 Definition happens_before E X :=
   tc (rel_union (po_iico E) (sync E X)).
 
-(* hb is the name of com *)
+(** If an event [x] is related to [y] by the happens-before relation (the union of read-from, write serialisation and from-read), then the [happens_before] relation can't relate [y] to [x]. *)
+
 Hypothesis happens_before_compat_com :
   forall E X x y, hb E X x y -> ~(happens_before E X y x).
+
+(** In a well-formed event structure with an execution valid on the weaker architecture, [happens_before] is irreflexive. Since it is a transitive closure, it is also a transitive relation, and thus, it is acyclic *)
 
 Hypothesis happens_before_irr :
   forall E X x,
@@ -57,14 +81,24 @@ Hypothesis happens_before_irr :
   A1Wmm.valid_execution E X ->
   ~(happens_before E X x x).
 
+(** Two events of an execution are competing if:
+
+- They read from/write to the same memory location
+- They are executed on different threads
+- At least one of them is a write event *)
+
 Definition competing E (X:Execution_witness) :=
   fun e1 => fun e2 => events E e1 /\ events E e2 /\
     loc e1 = loc e2 /\ proc_of e1 <> proc_of e2 /\
     (writes E e1 \/ writes E e2).
 
+(** [cns] contains all the events of an execution that are competing and that are not ordered by [happens_before] in either direction *)
+
 Definition cns E X :=
   fun e1 => fun e2 => competing E X e1 e2 /\
   ~ (happens_before E X e1 e2 \/ happens_before E X e2 e1).
+
+(** In a well-formed event structure, with an execution valid on the weaker architecture [A1], if there are two events competing and not ordered by [happens_before] in either direction, then there exists another execution, valid on the strong architecture [A2] (without barriers), on which the two events are still competing and not ordered by [happens_before] in either direction *)
 
 Hypothesis hb_stable :
   forall E X x y,
@@ -75,10 +109,13 @@ Hypothesis hb_stable :
   (exists Y, A2nWmm.valid_execution E Y /\
   competing E Y x y /\ ~ (happens_before E Y x y \/ happens_before E Y y x)).
 
+(** An execution is covered by a relation [r] if all the competing events of the execution are ordered by [r] in at least one direction *)
+
 Definition covered E X r :=
   forall e1 e2, (competing E X e1 e2) -> (r E X e1 e2 \/ r E X e2 e1).
 
-(* covering : (Event_struct -> Execution_witness -> Event -> Event -> Prop) -> Prop *)
+(** In a well-formed event structure, a relation [s] is _covering_ if, when it covers an execution valid on the weaker architecture [A1], the global happens-before relation of the execution on the stronger architecture [A2] is acyclic *)
+
 Definition covering s :=
   forall E X, well_formed_event_structure E ->
     A1Wmm.valid_execution E X ->
@@ -96,14 +133,16 @@ Definition covering s :=
     ((mkew (rrestrict (ws X) r) (rrestrict (rf X) r))) x y))).*)
 End HappensBefore.
 
+(** ** DRF Competing 
+
+We define a module of type [Compete] with [happens_before] as a synchronisation relation. This makes the [Drf0] independant of the [sync] relation of the module of types [HappensBefore]. *)
+
 Module Drf0 (HB:HappensBefore) <: Compete.
 
-Definition competing E (X:Execution_witness) :=
-  fun e1 => fun e2 => events E e1 /\ events E e2 /\
-    loc e1 = loc e2 /\ proc_of e1 <> proc_of e2 /\
-    (writes E e1 \/ writes E e2).
+Definition competing := HB.competing.
 
-(* Two competing accesses are events *)
+(** In well-formed event structure, two competing events belong to the set of events of the event structure *)
+
 Lemma compete_in_events :
   forall E X x y,
   well_formed_event_structure E ->
@@ -114,21 +153,24 @@ Proof.
 intros E X x y Hwf Hrfwf [Hex [Hey ?]]; split; auto.
 Qed.
 
+(** Two events of an execution are related by [hbd] if they are related by the happens-before relation and if they are executed on different threads *)
+
 Definition hbd E X :=
   fun e1 => fun e2 => hb E X e1 e2 /\ proc_of e1 <> proc_of e2.
 
-Definition cns E X :=
-  fun e1 => fun e2 => competing E X e1 e2 /\
-    ~ (HB.happens_before E X e1 e2 \/ HB.happens_before E X e2 e1).
+Definition cns := HB.cns.
 
 Ltac destruct_valid H :=
   destruct H as [[Hws_tot Hws_cands] [[Hrf_init [Hrf_cands Hrf_uni]] [Hsp [Hth Hvalid]]]];
   unfold write_serialization_well_formed in Hws_tot(*; unfold uniproc in Hsp*).
 
-Definition s E := HB.happens_before E.
+(** The synchronisation relation of [Drf0] is [happens_before] *)
 
-Definition covered E X r :=
-  forall e1 e2, (competing E X e1 e2) -> (r E X e1 e2 \/ r E X e2 e1).
+Definition s := HB.happens_before.
+
+Definition covered := HB.covered.
+
+(** In a well-formed event structure with a well-formed execution witness, if two events are related by the happens-before relation, at least one of them is a write *)
 
 Lemma hb_implies_write :
   forall E X x y,
@@ -153,6 +195,8 @@ inversion Hxy as [Hrffr | Hws].
       generalize (A2Basic.ran_ws_is_write E X x y Hwswf Hws); intros [v [l Ha]];
       exists l; exists v; auto.
 Qed.
+
+(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the happens-before relation is included in the union of [hbd] and of the program order *)
 
 Lemma hb_in_hbd_u_po :
   forall E X,
@@ -240,6 +284,8 @@ inversion Hhb as [Hrffr | Hws].
         inversion Ht.
 Qed.
 
+(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the [mhb] relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
+
 Lemma mhb2_in_hbd_po :
   forall E X,
   well_formed_event_structure E ->
@@ -252,6 +298,8 @@ intros E X Hwf Hs Hv x y Hmhb.
 generalize (A2Basic.mhb_in_hb E X x y Hmhb); intro Hhb.
 apply hb_in_hbd_u_po; auto.
 Qed.
+
+(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the global happens-before relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
 
 Lemma ghb2_in_hbd_po :
   forall E X,
@@ -268,6 +316,8 @@ apply mhb2_in_hbd_po; auto.
 right; apply A2.ppo_valid; auto.
 Qed.
 
+(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the transitive closure of the global happens-before relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
+
 Lemma tc_ghb2_in_tc_hbd_po :
   forall E X,
   well_formed_event_structure E ->
@@ -279,6 +329,8 @@ Proof.
 intros E X Hwf Hs Hv; apply tc_incl; apply ghb2_in_hbd_po; auto.
 Qed.
 
+(** In a well-formed event structure with a well-formed execution witness, the [hbd] relation is included in the competing events relation *)
+
 Lemma hbd_in_compete :
   forall E X,
   well_formed_event_structure E ->
@@ -286,14 +338,16 @@ Lemma hbd_in_compete :
   rfmaps_well_formed E (events E) (rf X) ->
   rel_incl (hbd E X) (competing E X).
 Proof.
-intros E X Hwf Hs x y [Hhb Hdp]; split; [|split; [|split; [|split]]]; auto.
-  change (events E x) with (In _ (events E) x);
-    apply A2Basic.hb_dom_in_evts with X y; auto.
-  change (events E y) with (In _ (events E) y);
-    apply A2Basic.hb_ran_in_evts with X x; auto.
-  apply A2Basic.hb_implies_same_loc with E X; auto.
-  apply hb_implies_write with X; auto.
+intros E X Hwf Hs x y [Hhb Hdp]. split; [|split; [|split; [|split]]]; auto.
+- change (events E x) with (In _ (events E) x);
+  apply A2Basic.hb_dom_in_evts with X y; auto.
+- change (events E y) with (In _ (events E) y);
+  apply A2Basic.hb_ran_in_evts with X x; auto.
+- apply A2Basic.hb_implies_same_loc with E X; auto.
+- apply hb_implies_write with X; auto.
 Qed.
+
+(** In a well-formed event structure with a well-formed execution witness, if an execution is covered by the synchronisation relation, then the [hbd] relation is included in the [happens_before] relation *)
 
 Lemma drf_hbd_in_sync :
   forall E X,
@@ -311,6 +365,8 @@ destruct Hxy as [Hhb ?].
   generalize (HB.happens_before_compat_com Hhb); intro;
   contradiction.
 Qed.
+
+(** In a well-formed event structure with a well-formed execution witness, if an execution is covered by the synchronisation relation, then the transitive closure of the union of the [hbd] relation and of the program order is included in the [happens_before] relation *)
 
 Lemma tc_drf_hbd_u_po_in_tc_sync_u_po :
   forall E X,
@@ -330,6 +386,15 @@ intros E X Hwf Hs (*Hwfs*) Hdrf.
       unfold HB.happens_before; apply trc_ind with y; auto.
 Qed.
 
+(** In a well-formed event structure with a well-formed execution witness, if:
+
+- The union of the happens-before relation and of the by-location program order is acyclic
+- The execution is covered by the synchronisation relation
+- There is a cycle in the global happens-before relation of the execution on the stronger architecture [A2] (without the barriers)
+
+Then there is a cycle in the union of [happens_before] and of the program order
+*)
+
 Lemma sync_thm :
   forall E X,
   well_formed_event_structure E ->
@@ -346,6 +411,8 @@ generalize (tc_drf_hbd_u_po_in_tc_sync_u_po Hwf Hs Hp Hu); intro Hhb.
 exists x; apply trc_step; left; unfold s; auto.
 Qed.
 
+(** In any execution, the transitive closure of the union of [happens_before] and of the program order is included in [happens_before] *)
+
 Lemma hb_u_po_is_hb :
   forall E X,
   rel_incl (tc (rel_union (HB.happens_before E X) (po_iico E))) (HB.happens_before E X).
@@ -357,15 +424,20 @@ induction Hxy.
     apply trc_ind with z; auto.
 Qed.
 
+(** In a well-formed event structure and in an execution valid on the weaker architecture [A1], there exists a relation such that:
+
+- The union of this relation with the synchronisation relation is acyclic
+- If the execution is covered and the global happens-before of the execution on the stronger architrecture [A2] (without the barriers) contains a cycle, then there is a cycle in the union of this relation and of the synchronisation relation *)
+
 Lemma convoluted_covering_holds :
-  forall E X, well_formed_event_structure E ->
+  forall E X, 
+    well_formed_event_structure E ->
     A1Wmm.valid_execution E X ->
     exists r,
     (acyclic (rel_union (s E X) r)) /\
     (covered E X s -> (exists x, tc (A2nWmm.ghb E X) x x) ->
       exists y, tc (rel_union (s E X) r) y y).
 Proof.
-
 intros E X Hwf Hv1; exists (po_iico E); unfold s;
   split; [ | intro Hp].
     unfold acyclic; intros x Hx.
@@ -375,60 +447,28 @@ intros E X Hwf Hv1; exists (po_iico E); unfold s;
   split; split; auto.
 Qed.
 
-Definition convoluted_covering :=
-  forall E X, well_formed_event_structure E ->
-    A1Wmm.valid_execution E X ->
-    exists r,
-    (acyclic (rel_union (s E X) r)) /\
-    (covered E X s -> (exists x, tc (A2nWmm.ghb E X) x x) ->
-      exists y, tc (rel_union (s E X) r) y y).
-
-Lemma covering_implied_by_convoluted_covering :
-  convoluted_covering ->
-   forall E X, well_formed_event_structure E ->
-    A1Wmm.valid_execution E X ->
-    covered E X s -> acyclic (A2nWmm.ghb E X).
-Proof.
-intros Hconv E X Hwf Hv1 Hc x Hx.
-generalize (Hconv E X Hwf Hv1); intros [r [Hacsr Himpl]].
-assert (exists x, tc (A2nWmm.ghb E X) x x) as Hcx.
-  exists x; auto.
-generalize (Himpl Hc Hcx); intros [y Hy].
-apply (Hacsr y Hy).
-Qed.
-
 Definition covering s :=
   forall E X, well_formed_event_structure E ->
     A1Wmm.valid_execution E X ->
     covered E X s -> acyclic (A2nWmm.ghb E X).
+
+(** In a well-formed event structure and in an execution valid on the weaker architecture [A1] and covered by the synchronisation relation, the global happens-before relation of the execution on the stronger architecture [A2] (without the barriers) is acyclic *)
 
 Lemma covering_s :
   forall E X, well_formed_event_structure E ->
     A1Wmm.valid_execution E X ->
     covered E X s -> acyclic (A2nWmm.ghb E X).
 Proof.
-apply covering_implied_by_convoluted_covering.
-unfold convoluted_covering; apply convoluted_covering_holds.
+intros E X Hwf Hv1 Hc x Hx.
+generalize (convoluted_covering_holds Hwf Hv1); intros [r [Hacsr Himpl]].
+assert (exists x, tc (A2nWmm.ghb E X) x x) as Hcx.
+  exists x; auto.
+generalize (Himpl Hc Hcx); intros [y Hy].
+apply (Hacsr y Hy).
 Qed.
 
-(* This was commented, but turns out to work *)
-(* s is the s_drf from the article *)
-Lemma wf:
-forall E X x y,
-  well_formed_event_structure E ->
-  A1Wmm.valid_execution E X ->
-  competing E X x y ->
-  ~ (s E X x y \/ s E X y x) ->
-  (exists Y, A2nWmm.valid_execution E Y /\
-  competing E Y x y /\ ~ (s E Y x y \/ s E Y y x)).
-Proof.
-intros E X x y Hwf Hv1 Hcxy Hnsxy.
-apply HB.hb_stable with X; auto.
-Qed.
+(* In a well-formed event structure and in an execution valid on the weaker architecture [A1], an event cannot be competing with itself *)
 
-About HB.hb_stable.
-
-(* A memory event cannot be competing with itself *)
 Lemma competing_irr : forall E X,
   well_formed_event_structure E ->
   A1Wmm.valid_execution E X ->
@@ -437,6 +477,8 @@ Proof.
 intros E X Hwf Hv [z [? [? [? [Hdp ?]]]]].
 apply Hdp; trivial.
 Qed.
+
+(* In a well-formed event structure and in an execution valid on the weaker architecture [A1], an event cannot occur in the program order after an event he is competing with *)
 
 
 Lemma competing_not_po :
