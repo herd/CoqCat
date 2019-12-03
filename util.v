@@ -715,6 +715,7 @@ one of the two relations *)
 Definition rel_union (A:Type) (r1 r2 : Rln A) : Rln A :=
   fun x => fun y => r1 x y \/ r2 x y.
 
+
 (** Union of relations is symmetric *)
 
 Lemma union_triv : (*util*)
@@ -730,6 +731,15 @@ inversion Hx as [H1 | H2].
   right; apply H1.
   left; apply H2.
 Qed.
+
+(** Intersection of two relations
+
+Two elements are related by the intersection of two relations if they are related by the two relations *)
+
+Definition rel_inter A (r1 r2 : Rln A) :=
+  fun x => fun y => r1 x y /\ r2 x y.
+
+
 
 (** The set of maximal elements is the elements in relation only with
     themselves *)
