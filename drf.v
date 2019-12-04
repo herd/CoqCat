@@ -18,6 +18,7 @@ From CoqCat Require Import hierarchy.
 From CoqCat Require Import valid.
 From CoqCat Require Import covering.
 Require Import Classical_Prop.
+Require Import Classical_Pred_Type.
 Import OEEvt.
 Set Implicit Arguments.
 
@@ -98,7 +99,7 @@ Definition cns E X :=
   fun e1 => fun e2 => competing E X e1 e2 /\
   ~ (happens_before E X e1 e2 \/ happens_before E X e2 e1).
 
-(** In a well-formed event structure, with an execution valid on the weaker architecture [A1], if there are two events competing and not ordered by [happens_before] in either direction, then there exists another execution, valid on the strong architecture [A2] (without barriers), on which the two events are still competing and not ordered by [happens_before] in either direction *)
+(** In a well-formed event structure, with an execution valid on the weaker architecture [A1], if there are two events competing and not ordered by [happens_before] in either direction, then there exists another execution, valid on the stronger architecture [A2] (without barriers), on which the two events are still competing and not ordered by [happens_before] in either direction *)
 
 Hypothesis hb_stable :
   forall E X x y,
@@ -113,6 +114,9 @@ Hypothesis hb_stable :
 
 Definition covered E X r :=
   forall e1 e2, (competing E X e1 e2) -> (r E X e1 e2 \/ r E X e2 e1).
+
+
+
 
 (** In a well-formed event structure, a relation [s] is _covering_ if, when it covers an execution valid on the weaker architecture [A1], the global happens-before relation of the execution on the stronger architecture [A2] is acyclic *)
 
@@ -480,7 +484,6 @@ Qed.
 
 (* In a well-formed event structure and in an execution valid on the weaker architecture [A1], an event cannot occur in the program order after an event he is competing with *)
 
-
 Lemma competing_not_po :
   forall E X x y,
   well_formed_event_structure E ->
@@ -546,19 +549,54 @@ Qed.*)
 
 End Drf0.
 
-(*
+(** ** DRF Guarantee *)
+
 Module DrfGuarantee (HB:HappensBefore).
 Module Drf := Drf0 HB.
 Module Pres := Preservation Drf.
 Import Pres.
+
+(** In a well-formed event structure, with an execution valid on the weaker architecture [A1], if the execution is not covered by [happens_before], then there is another execution, valid on the stronger architecture [A2], which isn't covered either *)
+
+Lemma a1_uncovered_implies_a2_uncovered:
+  forall E X,
+  well_formed_event_structure E ->
+  A1Wmm.valid_execution E X ->
+  ~(HB.covered E X HB.happens_before) ->
+  (exists Y, A2nWmm.valid_execution E Y /\
+             ~(HB.covered E Y HB.happens_before)).
+Proof.
+intros E X Hwf Hval1 Huncov; unfold HB.covered in Huncov; unfold HB.covered.
+apply not_all_ex_not in Huncov. destruct Huncov as [x Huncov].
+apply not_all_ex_not in Huncov. destruct Huncov as [y Huncov].
+apply imply_to_and in Huncov. destruct Huncov as [Hcomp Hhb].
+destruct (HB.hb_stable Hwf Hval1 Hcomp Hhb) as [Y [Hval2 Hcomp2]].
+exists Y; split; auto.
+apply ex_not_not_all. exists x. apply ex_not_not_all. exists y.
+intros H. destruct Hcomp2 as [Hcomp2 Hhb2]. apply H in Hcomp2.
+auto.
+Qed.
+
+(** In a well-formed event structure, if all the executions valid on the stronger architecture [A2] (without the barriers) are covered by [happens_before], then all the executions valid on the weaker architecture are valid on the stronger architecture *)
 
 Lemma drf_guarantee :
   (forall E X, A2nWmm.valid_execution E X -> Drf.covered E X Drf.s) ->
   (forall E X, well_formed_event_structure E ->
    (A1Wmm.valid_execution E X <-> A2nWmm.valid_execution E X)).
 Proof.
-apply stab_dir.
+intros Hcov E X Hwf; split; intros Hval.
+- unfold A1Wmm.valid_execution in Hval; destruct Hval as [Hrf [Hws [Huproc [Hoota Hac]]]].
+  unfold A2nWmm.valid_execution; repeat (try (split; auto)).
+  apply Drf.covering_s; auto.
+  unfold A1Wmm.valid_execution; repeat (try (split; auto)).
+  destruct (classic (Drf.covered E X Drf.s)) as [Hcovd|Hcovd]; auto.
+  assert (A1Wmm.valid_execution E X) as Hval1.
+  { unfold A1Wmm.valid_execution; repeat (try (split;auto)). }
+  destruct (a1_uncovered_implies_a2_uncovered Hwf Hval1 Hcovd) as [Y [Hval2 Huncov]].
+  apply Hcov in Hval2. apply Huncov in Hval2. destruct Hval2.
+- apply validity_decr; auto.
 Qed.
-End DrfGuarantee.*)
+
+End DrfGuarantee.
 
 End DataRaceFree.
