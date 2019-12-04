@@ -778,11 +778,8 @@ An execution (i.e. an event structure and an execution witness) is valid when:
 Definition valid_execution (E:Event_struct) (X:Execution_witness) : Prop :=
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) /\
-(*  wf_sync E X /\ *)
   acyclic (rel_union (hb E X) (pio_llh E)) /\ (* uniproc: per location coherence *)
-(*  uniproc E X /\ *)
-  acyclic (rel_union (rf X) (dp E)) /\
-(* thins E X /\ *)
+  acyclic (rel_union (rf X) (dp E)) /\ (* out-of-thin-air condition *)
   acyclic (ghb E X).
 
 (** Corresponds to [rf_intra] when [intra] is true, and to the empty relation
