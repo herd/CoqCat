@@ -27,24 +27,30 @@ Set Implicit Arguments.
 
 Module Locks (A: Archi) (dp:Dp).
 
-Axiom excluded_middle : forall (A:Prop), A \/ ~A.
-
 Module ARes <: Archi.
+
 Parameter ppo : Event_struct -> Rln Event.
+
 Hypothesis ppo_valid : forall E, rel_incl (ppo E) (po_iico E).
+
 Hypothesis ppo_fun :
   forall E s x y,
   ppo E x y /\ s x /\ s y <->
   ppo (mkes (Intersection Event (events E) s) (rrestrict (iico E) s)) x y.
+
 Parameter inter : bool.
 Parameter intra : bool.
+
 Parameter abc : Event_struct -> Execution_witness -> Rln Event.
+
 Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   forall x y, well_formed_event_structure E ->
   rfmaps_well_formed E (events E) (rf X) ->
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
+
 Hypothesis ab_incl :
   forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+
 Hypothesis ab_fun :
   forall E X s x y,
   well_formed_event_structure E ->
@@ -52,15 +58,23 @@ Hypothesis ab_fun :
   (abc E X x y /\ s x /\ s y <->
   abc (mkes (Intersection Event (events E) s) (rrestrict (iico E) s))
     (mkew (rrestrict (ws X) s) (rrestrict (rf X) s)) x y).
+
 Parameter stars : Event_struct -> set Event.
+
 End ARes.
+
 Import ARes.
+
 (** locks *)
 Module An <: Archi.
+
 Definition ppo := A.ppo.
+
 Lemma ppo_valid : forall E, rel_incl (ppo E) (po_iico E).
+Proof.
   apply A.ppo_valid.
 Qed.
+
 Lemma ppo_fun :
   forall E s x y,
   ppo E x y /\ s x /\ s y <->
@@ -68,10 +82,13 @@ Lemma ppo_fun :
 Proof.
   apply A.ppo_fun.
 Qed.
+
 Definition inter := A.inter.
 Definition intra := A.intra.
+
 Definition abc (E:Event_struct) (X:Execution_witness) : Rln Event :=
   fun e1 => fun e2 => False.
+
 Lemma ab_evts : forall (E:Event_struct) (X:Execution_witness),
   forall x y, well_formed_event_structure E ->
   rfmaps_well_formed E (events E) (rf X) ->
@@ -79,11 +96,13 @@ Lemma ab_evts : forall (E:Event_struct) (X:Execution_witness),
 Proof.
 intros E X x y Hwf Hrf Hxy. inversion Hxy.
 Qed.
+
 Lemma ab_incl :
   forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
 Proof.
 intros E X x y Hxy. inversion Hxy.
 Qed.
+
 Lemma ab_fun :
   forall E X s x y,
   well_formed_event_structure E ->
@@ -99,7 +118,9 @@ intros E X s x y Hwf Hrfwf; split; intro Hxy.
 Qed.
 
 Parameter stars : Event_struct -> set Event.
+
 End An.
+
 Module AnWmm := Wmm An dp.
 
 Module VA := Valid An dp.
@@ -119,6 +140,7 @@ Ltac destruct_atom H :=
 
 Definition taken (E:Event_struct) (l:Location) r : Prop :=
   (exists w, atom E r w l (*/\ value_of r = Some 0 /\ value_of w = Some 1*)).
+
 Definition free (E:Event_struct) (l:Location) r w : Prop :=
   po_iico E r w /\ taken E l r /\ loc w = l (*/\ value_of w = Some 0*).
 
@@ -126,6 +148,7 @@ Definition ImportBarrier (E: Event_struct) (b: Event) : Prop :=
   forall X,
   (forall r e, reads E r -> stars E r -> po_iico E r b -> po_iico E b e -> abc E X r e) (*/\
   (forall r w rw, reads E r -> po_iico E r b -> po_iico E b w -> rf X w rw -> abc E X r rw)*).
+
 Definition ExportBarrier (E: Event_struct) (b: Event) : Prop :=
   forall X,
   (forall e w r, stars E r ->
@@ -134,6 +157,7 @@ Definition ExportBarrier (E: Event_struct) (b: Event) : Prop :=
 
 Definition Lock (E:Event_struct) (l:Location) (r c:Event) : Prop :=
   taken E l r /\ ImportBarrier E c /\ po_iico E r c.
+
 Definition Unlock (E:Event_struct) (l:Location) r (b w:Event) : Prop :=
   free E l r w /\ ExportBarrier E b /\ po_iico E b w.
 
@@ -143,36 +167,48 @@ Record Cs' : Type := mkcs
   Eb: Event;
   Write: Event;
   Evts: set Event}.
+
 Definition Cs := Cs'.
+
 Definition cs (E:Event_struct) (l:Location) crit :=
   Lock E l crit.(Read) crit.(Ib) /\
   (forall e, crit.(Evts) e <-> po_iico E crit.(Ib) e /\ po_iico E e crit.(Eb)) /\
   Unlock E l crit.(Read) crit.(Eb) crit.(Write) /\
   po_iico E crit.(Ib) crit.(Eb).
+
 Definition evts (cs:Cs) := Evts cs.
+
 Definition sc E l :=
   fun s1 => fun s2 => cs E l s1 /\ cs E l s2 /\ s1 <> s2.
+
 Definition s E (X:Execution_witness) :=
   fun e1 => fun e2 => exists l, exists s1, exists s2, sc E l s1 s2 /\ evts s1 e1 /\ evts s2 e2.
+
 Definition css E X l :=
    fun s1 => fun s2 => sc E l s1 s2 /\
     (rf X) s1.(Write) s2.(Read).
+
 Ltac destruct_css H :=
   destruct H as [[Hcs1 [Hcs2 Hdcs]] Hrf].
+
 Definition css_lift E X l :=
   fun e1 => fun e2 => exists s1, exists s2,
     css E X l s1 s2 /\ (Evts s1) e1 /\ (Evts s2) e2.
+
 Ltac destruct_csslift H :=
   destruct H as [s1 [s2 [Hcss [Hev1 Hev2]]]].
+
 Inductive lockc' E X l : Event -> Event -> Prop :=
   | RF : forall e1 e2, css_lift E X l e1 e2 -> lockc' E X l e1 e2
   | Trans :
     forall e1 e e2,
     lockc' E X l e1 e -> lockc' E X l e e2 -> lockc' E X l e1 e2.
+
 Definition lockc E X l := lockc' E X l.
 Definition lock E X := fun e1 => fun e2 => exists l, lockc E X l e1 e2.
 
 Parameter inite : Location -> Event.
+
 Axiom init_evt : forall E l, events E (inite l).
 Axiom init_store : forall l, write_to (inite l) l.
 Axiom init_ws : forall X l, ~(exists e, ws X e (inite l)).
@@ -190,14 +226,18 @@ Import AResWmm.
 Import ARes.
 
 Definition sync := s.
+
 Definition happens_before E X :=
   tc (rel_union (po_iico E) (sync E X)).
+
 Hypothesis happens_before_compat_com :
   forall E X x y, hb E X x y -> ~(happens_before E X y x).
+
 Definition competing E (X:Execution_witness) :=
   fun e1 => fun e2 => events E e1 /\ events E e2 /\
     loc e1 = loc e2 /\ proc_of e1 <> proc_of e2 /\
     (writes E e1 \/ writes E e2).
+
 Definition cns E X :=
   fun e1 => fun e2 => competing E X e1 e2 /\
   ~ (happens_before E X e1 e2 \/ happens_before E X e2 e1).
@@ -211,6 +251,7 @@ Definition convoluted_wf :=
   ws Y = so_ws
          (LE (tc (rel_union (rel_union (rel_inter (cns E X) (pair x y)) (A.ppo E)) (pio_llh E)))) ->
   competing E Y x y /\ ~ (happens_before E Y x y \/ happens_before E Y y x).
+
 Lemma compete_in_events :
   forall E X x y,
   well_formed_event_structure E ->
@@ -269,6 +310,7 @@ induction H12 as [e1 e2 Hu |]; [apply trc_step|].
       right; destruct Hpio as [? [? ?]]; auto.
   apply trc_ind with z; auto.
 Qed.
+
 Lemma competing_irr : forall E X,
   well_formed_event_structure E ->
   AWmm.valid_execution E X ->
@@ -277,6 +319,7 @@ Proof.
 intros E X Hwf Hv [z [? [? [? [Hdp ?]]]]].
 apply Hdp; trivial.
 Qed.
+
 Lemma pair_irr :
   forall E X x y,
   well_formed_event_structure E ->
@@ -289,6 +332,7 @@ destruct Hc as [? [? [? [Hdp ?]]]].
      exists z; auto.
     apply (competing_irr Hwf Hv1 Hc).
 Qed.
+
 Lemma competing_not_po :
   forall E X x y,
   well_formed_event_structure E ->
@@ -303,6 +347,7 @@ assert (In _ (events E) y) as Hy.
 generalize (AResBasic.po_implies_same_proc Hwf Hy Hx Hpo); intro Heq;
 subst; auto.
 Qed.
+
 Lemma tc_pair_po_in_pair_po :
   forall E X x y,
   well_formed_event_structure E ->
@@ -551,6 +596,7 @@ assert (rel_incl (abc E X) (ghb E X)) as Hi.
   intros e1 e2; apply ab_in_ghb; auto.
 apply (tc_incl Hi Hc).
 Qed.
+
 Lemma lock_irrefl :
   forall E X,
   well_formed_event_structure E ->
@@ -571,6 +617,7 @@ Lemma po_irrefl :
 Proof.
 intros E Hwf [x Hx]. apply (po_ac Hwf Hx).
 Qed.
+
 Lemma lockc_po_irrefl :
   forall E X l,
   well_formed_event_structure E ->
@@ -585,6 +632,7 @@ intros E X l Hwf Hv [x Hx]; inversion Hx.
     exists x; auto.
   apply (lockc_irrefl Hwf Hv He).
 Qed.
+
 Lemma lock_po_irrefl :
   forall E X,
   well_formed_event_structure E ->
@@ -599,6 +647,7 @@ intros E X Hwf Hv [x Hx]; inversion Hx.
     exists x; auto.
   apply (lock_irrefl Hwf Hv He).
 Qed.
+
 Lemma lockc_trans :
   forall E X l,
   well_formed_event_structure E ->
@@ -609,6 +658,7 @@ intros E X l Hwf Hv x y z Hxy Hyz.
 unfold lockc in * |- *;
 apply Trans with y; auto.
 Qed.
+
 Lemma po_trans :
   forall E, well_formed_event_structure E ->
   trans (po_iico E).
@@ -778,6 +828,7 @@ induction Hxy.
 
     apply trc_ind with e; auto.
 Qed.
+
 Lemma lock_in_ghb :
   forall E X x y,
   well_formed_event_structure E ->
@@ -788,6 +839,7 @@ Proof.
 intros E X x y Hwf Hv Hxy.
 destruct Hxy as [l Hxy]; apply lockc_in_ghb with l; auto.
 Qed.
+
 Lemma tclock_in_ghb :
   forall E X x y,
   well_formed_event_structure E ->
@@ -876,6 +928,7 @@ generalize (dom_rf_is_write E X x x Hrf_cands Hx); intros [l [v Hwx]].
 generalize (ran_rf_is_read E X x x Hrf_cands Hx); intros [l' [v' Hrx]].
 rewrite Hrx in Hwx; inversion Hwx.
 Qed.
+
 Lemma lockc_rf_irrefl :
   forall E X l,
   well_formed_event_structure E ->
@@ -890,6 +943,7 @@ intros E X l Hwf Hv [x Hx]; inversion Hx.
     exists x; auto.
   apply (lockc_irrefl Hwf Hv He).
 Qed.
+
 Lemma rf_trans :
   forall E X, well_formed_event_structure E ->
   valid_execution E X ->
@@ -909,15 +963,20 @@ Axiom unic_css :
     cs E l cs2 ->
     Evts cs1 e -> Evts cs2 e ->
     cs1 = cs2.
+
 Axiom cs_wf : forall E l c, cs E l c ->
   (forall X, ~(exists w, fr E X (Read c) w /\ ws X w (Write c))).
+
 Axiom cs_fr : (*provable from uniproc equivs*)
   forall E X l c, cs E l c -> fr E X (Read c) (Write c).
+
 Axiom diff_cs : forall E X l1 l2 c1 c2, cs E l1 c1 -> cs E l2 c2 ->
   rf X (Write c1) (Read c2) -> c1 <> c2.
+
 Axiom cs_diff : forall E cs1 cs2, cs1 <> cs2 ->
   (forall e1 e2, Evts cs1 e1 -> Evts cs2 e2 -> e1 <> e2) /\
   (forall l ws1 ws2, atom E (Read cs1) ws1 l -> atom E (Read cs2) ws2 l -> ws1 <> ws2).
+
 Axiom no_other_stores : forall E l w, write_to w l -> (exists crit, cs E l crit /\ (Write crit) = w /\ exists e, Evts crit e).
 
 Set Implicit Arguments.
@@ -925,6 +984,7 @@ Inductive nsteps (A:Set) (r:Rln A) : nat -> A -> A -> Prop :=
  (* | rtriv : forall x y, x = y -> nsteps r 0 x y *)
   | rintro : forall x y, r x y -> ~(exists z, r x z /\ r z y) -> nsteps r 1 x y
   | rtrans : forall x y z n, r x y -> nsteps r n y z -> nsteps r (S n) x z.
+
 Lemma n1_is_r : forall A r x y,
   @nsteps A r 1 x y -> r x y.
 Proof.
@@ -932,12 +992,16 @@ intros A r x y H1.
 inversion H1; auto.
 inversion H2.
 Qed.
+
 Definition discrete (A:Set) (r:Rln A) := forall x y, r x y -> exists n, nsteps r n x y. (*has a meaning only if r irrefl*)
 Definition decr (A:Set) (r:Rln A) := forall x y n, nsteps r (S n) x y -> exists z, nsteps r 1 x z /\ nsteps r n z y.
+
 Unset Implicit Arguments.
 Axiom dis_ws : forall X, discrete (ws X).
 Axiom dec_ws : forall X, decr (ws X).
+
 Definition pio_cs E := fun e1 => fun e2 => exists l, exists cr, cs E l cr /\ e1 = Read cr /\ e2 = Write cr /\ (exists e, Evts cr e).
+
 Axiom dec_rfpio : forall E X, decr (rel_seq (rf X) (pio_cs E)).
 
 Lemma nws_implies_write :
@@ -1479,11 +1543,11 @@ Lemma rf_contrad_or :
   ~(cs E l cs2 /\ cs E l cs3) \/ cs2 = cs3.
 Proof.
 intros E X l Hwf Hv w cs2 cs3 Hrf2 Hrf3.
-  generalize (excluded_middle (cs2 = cs3)); intro Hor; inversion Hor; auto.
+  generalize (classic (cs2 = cs3)); intro Hor; inversion Hor; auto.
   left; apply rf_contrad with X w; auto.
 Qed.
 
- Lemma same_cs_lock :
+Lemma same_cs_lock :
     forall E X l, forall x y z crit,
     well_formed_event_structure E ->
     valid_execution E X ->
@@ -1518,9 +1582,9 @@ intros E X Hwf Hv l z x cs1 cs2 Hcsszx Hez Hex y Hzy.
 induction Hzy as [z y Hszy |].
     destruct_css Hcsszx.
     destruct_csslift Hszy.
-generalize (excluded_middle (x = y)); intro Hore.
+generalize (classic (x = y)); intro Hore.
 inversion Hore; auto.
-generalize (excluded_middle (cs2 = s2)); intro Horcs.
+generalize (classic (cs2 = s2)); intro Horcs.
 inversion Horcs.
   subst; auto.
   destruct Hcss as [[Hcs1' [Hcs2' Hdcs']] Hrf'].
@@ -1694,7 +1758,7 @@ Definition covering s :=
 
 End HB.
 
-(*Module DrfG := DrfGuarantee HB.
+Module DrfG := DrfGuarantee HB.
 Module AWmm := Wmm A dp.
 
 Module AResWmm := Wmm ARes dp.
@@ -1704,6 +1768,6 @@ Lemma locks_provide_drf_guarantee :
    (AResWmm.valid_execution E X <-> AnWmm.valid_execution E X)).
 Proof.
 apply DrfG.drf_guarantee.
-Qed.*)
+Qed.
 
 End Locks.
