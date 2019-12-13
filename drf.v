@@ -69,10 +69,10 @@ Parameter sync : Event_struct -> Execution_witness -> Rln Event.
 Definition happens_before E X :=
   tc (rel_union (po_iico E) (sync E X)).
 
-(** If an event [x] is related to [y] by the happens-before relation (the union of read-from, write serialisation and from-read), then the [happens_before] relation can't relate [y] to [x]. *)
+(** If an event [x] is related to [y] by the communication relation (the union of read-from, write serialisation and from-read), then the [happens_before] relation can't relate [y] to [x]. *)
 
 Hypothesis happens_before_compat_com :
-  forall E X x y, hb E X x y -> ~(happens_before E X y x).
+  forall E X x y, com E X x y -> ~(happens_before E X y x).
 
 (** In a well-formed event structure with an execution valid on the weaker architecture, [happens_before] is irreflexive. Since it is a transitive closure, it is also a transitive relation, and thus, it is acyclic *)
 
@@ -157,10 +157,10 @@ Proof.
 intros E X x y Hwf Hrfwf [Hex [Hey ?]]; split; auto.
 Qed.
 
-(** Two events of an execution are related by [hbd] if they are related by the happens-before relation and if they are executed on different threads *)
+(** Two events of an execution are related by [hbd] if they are related by the communication relation and if they are executed on different threads *)
 
 Definition hbd E X :=
-  fun e1 => fun e2 => hb E X e1 e2 /\ proc_of e1 <> proc_of e2.
+  fun e1 => fun e2 => com E X e1 e2 /\ proc_of e1 <> proc_of e2.
 
 Definition cns := HB.cns.
 
@@ -174,14 +174,14 @@ Definition s := HB.happens_before.
 
 Definition covered := HB.covered.
 
-(** In a well-formed event structure with a well-formed execution witness, if two events are related by the happens-before relation, at least one of them is a write *)
+(** In a well-formed event structure with a well-formed execution witness, if two events are related by the communication relation, at least one of them is a write *)
 
-Lemma hb_implies_write :
+Lemma com_implies_write :
   forall E X x y,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X x y ->
+  com E X x y ->
   writes E x \/ writes E y.
 Proof.
 intros E X x y Hwf [Hwswf Hrfwf] Hxy.
@@ -200,15 +200,15 @@ inversion Hxy as [Hrffr | Hws].
       exists l; exists v; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the happens-before relation is included in the union of [hbd] and of the program order *)
+(** In a well-formed event structure with a well-formed execution witness, if the union of the communication relation, and of the by-location program order is acyclic, then the happens-before relation is included in the union of [hbd] and of the program order *)
 
-Lemma hb_in_hbd_u_po :
+Lemma com_in_hbd_u_po :
   forall E X,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  acyclic (rel_union (hb E X) (pio_llh E)) ->
-  rel_incl (hb E X) (rel_union (hbd E X) (po_iico E)).
+  acyclic (rel_union (com E X) (pio_llh E)) ->
+  rel_incl (com E X) (rel_union (hbd E X) (po_iico E)).
 Proof.
 intros E X Hwf Hs Huni x y Hhb.
 inversion Hhb as [Hrffr | Hws].
@@ -225,10 +225,10 @@ inversion Hhb as [Hrffr | Hws].
           apply A2Basic.hb_range_in_events with X x; auto.
         generalize (A2Basic.same_proc_implies_po x y Hwf Heq Hex Hey);
         intro Hpo; inversion Hpo as [Hxy | Hyx]; auto.
-        assert (tc (rel_union (hb E X) (pio_llh E)) x x) as Hcy.
+        assert (tc (rel_union (com E X) (pio_llh E)) x x) as Hcy.
           apply trc_ind with y; apply trc_step.
             left; auto. right; split; auto.
-            apply sym_eq; apply A2Basic.hb_implies_same_loc with E X; auto.
+            apply sym_eq; apply A2Basic.com_implies_same_loc with E X; auto.
             split; auto.
             generalize Hs; intros [Hwswf [Hrfwf1 [Hrfwf2 Hrfwf3]]].
             generalize (A2Basic.dom_rf_is_write E X x y Hrfwf2 Hrf);
@@ -250,10 +250,10 @@ inversion Hhb as [Hrffr | Hws].
           apply A2Basic.hb_range_in_events with X x; auto.
         generalize (A2Basic.same_proc_implies_po x y Hwf Heq Hex Hey);
         intro Hpo; inversion Hpo as [Hxy | Hyx]; auto.
-        assert (tc (rel_union (hb E X) (pio_llh E)) x x) as Hcy.
+        assert (tc (rel_union (com E X) (pio_llh E)) x x) as Hcy.
           apply trc_ind with y; apply trc_step.
             left; auto. right; split; auto.
-            apply sym_eq; apply A2Basic.hb_implies_same_loc with E X; auto.
+            apply sym_eq; apply A2Basic.com_implies_same_loc with E X; auto.
             split; auto.
             generalize Hs; intros [Hwswf Hrfwf].
             generalize (A2Basic.ran_fr_is_write Hwswf Hfr); intros [v [l Hwy]] [[? [? [? Hry]]]?].
@@ -274,10 +274,10 @@ inversion Hhb as [Hrffr | Hws].
           apply A2Basic.hb_range_in_events with X x; auto.
         generalize (A2Basic.same_proc_implies_po x y Hwf Heq Hex Hey);
         intro Hpo; inversion Hpo as [Hxy | Hyx]; auto.
-        assert (tc (rel_union (hb E X) (pio_llh E)) x x) as Hcy.
+        assert (tc (rel_union (com E X) (pio_llh E)) x x) as Hcy.
           apply trc_ind with y; apply trc_step.
             left; auto. right; split; auto.
-            apply sym_eq; apply A2Basic.hb_implies_same_loc with E X; auto.
+            apply sym_eq; apply A2Basic.com_implies_same_loc with E X; auto.
             split; auto.
             generalize Hs; intros [Hwswf Hrfwf].
             generalize (A2Basic.ran_ws_is_write E X x y Hwswf Hws);
@@ -288,29 +288,29 @@ inversion Hhb as [Hrffr | Hws].
         inversion Ht.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the [mhb] relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
+(** In a well-formed event structure with a well-formed execution witness, if the union of the communication relation, and of the by-location program order is acyclic, then the [mhb] relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
 
 Lemma mhb2_in_hbd_po :
   forall E X,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  acyclic (rel_union (hb E X) (pio_llh E)) ->
+  acyclic (rel_union (com E X) (pio_llh E)) ->
   rel_incl (A2nWmm.mhb E X) (rel_union (hbd E X) (po_iico E)).
 Proof.
 intros E X Hwf Hs Hv x y Hmhb.
-generalize (A2Basic.mhb_in_hb E X x y Hmhb); intro Hhb.
-apply hb_in_hbd_u_po; auto.
+generalize (A2Basic.mhb_in_com E X x y Hmhb); intro Hhb.
+apply com_in_hbd_u_po; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the global happens-before relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
+(** In a well-formed event structure with a well-formed execution witness, if the union of the communication relation, and of the by-location program order is acyclic, then the global happens-before relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
 
 Lemma ghb2_in_hbd_po :
   forall E X,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  acyclic (rel_union (hb E X) (pio_llh E)) ->
+  acyclic (rel_union (com E X) (pio_llh E)) ->
   rel_incl (A2nWmm.ghb E X) (rel_union (hbd E X) (po_iico E)).
 Proof.
 intros E X Hwf Hs Hv.
@@ -320,14 +320,14 @@ apply mhb2_in_hbd_po; auto.
 right; apply A2.ppo_valid; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if the union of the happens-before relation, and of the by-location program order is acyclic, then the transitive closure of the global happens-before relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
+(** In a well-formed event structure with a well-formed execution witness, if the union of the communication relation, and of the by-location program order is acyclic, then the transitive closure of the global happens-before relation on the stronger architecture [A2] (without the barriers) is included in the union of [hbd] and of the program order *)
 
 Lemma tc_ghb2_in_tc_hbd_po :
   forall E X,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  acyclic (rel_union (hb E X) (pio_llh E)) ->
+  acyclic (rel_union (com E X) (pio_llh E)) ->
   rel_incl (tc (A2nWmm.ghb E X)) (tc (rel_union (hbd E X) (po_iico E))).
 Proof.
 intros E X Hwf Hs Hv; apply tc_incl; apply ghb2_in_hbd_po; auto.
@@ -347,8 +347,8 @@ intros E X Hwf Hs x y [Hhb Hdp]. split; [|split; [|split; [|split]]]; auto.
   apply A2Basic.hb_dom_in_evts with X y; auto.
 - change (events E y) with (In _ (events E) y);
   apply A2Basic.hb_ran_in_evts with X x; auto.
-- apply A2Basic.hb_implies_same_loc with E X; auto.
-- apply hb_implies_write with X; auto.
+- apply A2Basic.com_implies_same_loc with E X; auto.
+- apply com_implies_write with X; auto.
 Qed.
 
 (** In a well-formed event structure with a well-formed execution witness, if an execution is covered by the synchronisation relation, then the [hbd] relation is included in the [happens_before] relation *)
@@ -392,7 +392,7 @@ Qed.
 
 (** In a well-formed event structure with a well-formed execution witness, if:
 
-- The union of the happens-before relation and of the by-location program order is acyclic
+- The union of the communication relation and of the by-location program order is acyclic
 - The execution is covered by the synchronisation relation
 - There is a cycle in the global happens-before relation of the execution on the stronger architecture [A2] (without the barriers)
 
@@ -404,7 +404,7 @@ Lemma sync_thm :
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  acyclic (rel_union (hb E X) (pio_llh E)) ->
+  acyclic (rel_union (com E X) (pio_llh E)) ->
     (covered E X s -> (exists x, tc (A2nWmm.ghb E X) x x) ->
       exists y, tc (rel_union (HB.happens_before E X) (po_iico E)) y y).
 Proof.

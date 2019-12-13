@@ -274,7 +274,7 @@ induction Htc as [x y Hu |]; auto.
          split; auto.
        generalize (A2nBasic.same_proc_implies_po x wy Hwf Heqp Hex Hewy);
        intro Hor; inversion Hor; auto.
-       assert (tc (rel_union (hb E Y) (pio_llh E)) x x) as Hcuni.
+       assert (tc (rel_union (com E Y) (pio_llh E)) x x) as Hcuni.
          apply trc_ind with wy; apply trc_step.
            left; right; auto.
            right; split; [|split]; auto.

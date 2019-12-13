@@ -559,19 +559,19 @@ Definition final (X:Execution_witness) : set Event :=
 
 (** ** Happens Before
 
-The happens-before relation is the union of the read-from, from-read and write
+The communication relation is the union of the read-from, from-read and write
 serialization relations. It is called communication relation in (A Shared Memory
 Poetics, 2010, Jade Alglave)
  *)
 
-Definition hb (E:Event_struct) (X:Execution_witness) : Rln Event :=
+Definition com (E:Event_struct) (X:Execution_witness) : Rln Event :=
   rel_union (rel_union (rf X) (fr E X)) (ws X).
 
 (** An execution is valid in the sequentially consistent memory model if the
-union of its program order and of its happens-before relation is acyclic *)
+union of its program order and of its communication relation is acyclic *)
 
 Definition sc_check (E:Event_struct) (X:Execution_witness) : Prop :=
-  acyclic (rel_union (po_iico E) (hb E X)).
+  acyclic (rel_union (po_iico E) (com E X)).
 
 (** Two events from an event structure are competing if:
 
@@ -679,10 +679,10 @@ Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
 
 (** Our barriers can't contradict the program order (event structure) or the
-happens-before relation (execution witness). *)
+communication relation (execution witness). *)
 
 Hypothesis ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 
 (** It is not exactly clear what this represents, and it seems to be left as
 a parameter everywhere. Needs further documentation *)
@@ -737,23 +737,18 @@ Definition ghb (E:Event_struct) (X:Execution_witness) :
 
 (** ** Uniprocessor
 
-The uniprocessor condition on executions states that the happens-before relation
-must be compatible with processor issue order restricted to pairs of event where
-at least one of the events is the write.
+The uniprocessor condition on executions states that the communication relation must be compatible with processor issue order restricted to pairs of event where at least one of the events is the write.
 
 Concretely, this means that :
 
-- If two writes are ordered by the write serialization order, they must occur
-in this order;
-- If a read reads the value written by a specific write, the write event must
-occur before the read event;
-- If a read reads the value written by a first write preceding a second write,
-this read event must occur before the second event
+- If two writes are ordered by the write serialization order, they must occur in this order;
+- If a read reads the value written by a specific write, the write event must occur before the read event;
+- If a read reads the value written by a first write preceding a second write, this read event must occur before the second event
  *)
 
 Definition uniproc E X :=
-  (*if llh then*) acyclic (rel_union (hb E X) (pio_llh E))
-  (*else acyclic (rel_union (hb E X) (pio E))*).
+  (*if llh then*) acyclic (rel_union (com E X) (pio_llh E))
+  (*else acyclic (rel_union (com E X) (pio E))*).
 
 (** ** Out of thin air
 
@@ -778,7 +773,7 @@ An execution (i.e. an event structure and an execution witness) is valid when:
 Definition valid_execution (E:Event_struct) (X:Execution_witness) : Prop :=
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) /\
-  acyclic (rel_union (hb E X) (pio_llh E)) /\ (* uniproc: per location coherence *)
+  acyclic (rel_union (com E X) (pio_llh E)) /\ (* uniproc: per location coherence *)
   acyclic (rel_union (rf X) (dp E)) /\ (* out-of-thin-air condition *)
   acyclic (ghb E X).
 

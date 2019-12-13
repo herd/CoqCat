@@ -198,12 +198,12 @@ Lemma mhbd_in_conflict :
   rel_incl (mhbd E X) (conflict E).
 Proof.
 intros E X Hwf Hs x y [? ?].
-generalize (A2nBasic.mhb_in_hb E X x y H); intro Hhb.
+generalize (A2nBasic.mhb_in_com E X x y H); intro Hhb.
 split; [|split; [|split; [|split]]]; auto.
   change (events E x) with (In _ (events E) x); apply A2nBasic.hb_dom_in_evts with X y; auto.
   change (events E y) with (In _ (events E) y); apply A2nBasic.hb_ran_in_evts with X x; auto.
-  apply A2nBasic.hb_implies_same_loc with E X; auto.
-  apply A2nBasic.hb_implies_writes with X; auto.
+  apply A2nBasic.com_implies_same_loc with E X; auto.
+  apply A2nBasic.com_implies_writes with X; auto.
 Qed.
 
 Set Implicit Arguments.
@@ -284,7 +284,7 @@ Module Drf := DrfG.Drf0 (HB).
 
 Hypothesis s_com :
   forall E X x y,
-  s E X x y -> ~(hb E X y x).
+  s E X x y -> ~(com E X y x).
 Hypothesis s_po :
   forall E X,
   acyclic (rel_union (s E X) (po_iico E)).
@@ -335,8 +335,8 @@ generalize (Hcov x y Hcomp); intro Hor; inversion Hor; auto.
 
 inversion Hxy as [Hmhbd | Hppo].
   destruct Hmhbd as [Hmhbdxy ?].
-  assert (hb E X x y) as Hhb.
-    apply A2nBasic.mhb_in_hb; auto.
+  assert (com E X x y) as Hhb.
+    apply A2nBasic.mhb_in_com; auto.
   generalize (s_com E X y x H3); intro; contradiction.
 
   assert (exists x, tc (rel_union (s E X) (po_iico E)) x x) as Hcy.

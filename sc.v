@@ -164,7 +164,7 @@ Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
 
 Hypothesis ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 
 Hypothesis ab_fun :
   forall E X s x y,
@@ -227,10 +227,10 @@ Module AWmm := Wmm A dp.
 Import AWmm.
 Import A.
 
-(** We define the SC check condition, which is the acyclicity of the program order and of the happens-before relation. This corresponds to the ghb acyclicity part of the condition of the generic condition of validity. Indeed, on an SC architectures, there are no barriers, all the program order is preserved and the whole read-from relation is global *)
+(** We define the SC check condition, which is the acyclicity of the program order and of the communication relation. This corresponds to the ghb acyclicity part of the condition of the generic condition of validity. Indeed, on an SC architectures, there are no barriers, all the program order is preserved and the whole read-from relation is global *)
 
 Definition sc_check (E:Event_struct) (X:Execution_witness) : Prop :=
-  acyclic (rel_union (po_iico E) (hb E X)).
+  acyclic (rel_union (po_iico E) (com E X)).
 
 (** *** Validy of SC execution
 
@@ -423,12 +423,12 @@ eapply incl_ac with (rel_union so (pio E)).
 apply so_ac_pio; auto.
 Qed.
 
-(** The happens-before extracted from a sequential execution is included in the sequential execution itself *)
+(** The communication relation extracted from a sequential execution is included in the sequential execution itself *)
 
-Lemma hb_in_so :
+Lemma com_in_so :
   forall E so,
   seq_exec E so ->
-  rel_incl (hb E (sc_witness E so)) so.
+  rel_incl (com E (sc_witness E so)) so.
 Proof.
 unfold rel_incl; intros E so Hsc_ord x y Hhb.
 inversion Hhb as [Hrf_fr | Hws]; unfold sc_witness in *; simpl in *.
@@ -469,22 +469,22 @@ destruct (eqEv_dec x y) as [Heq | Hdiff].
   destruct Hws as [Hso Hrest]; apply Hso.
 Qed.
 
-(** For any given location, there are no conflicts between the happens-before relation extracted from a sequential execution and the program order restricted to events reading from/writing to this location *)
+(** For any given location, there are no conflicts between the communication relation extracted from a sequential execution and the program order restricted to events reading from/writing to this location *)
 
-Lemma sc_hb_wf :
+Lemma sc_com_wf :
   forall E so,
   seq_exec E so ->
   acyclic
-  (rel_union (hb E (sc_witness E so)) (pio E)).
+  (rel_union (com E (sc_witness E so)) (pio E)).
 Proof.
 intros E so Hsc_ord.
 eapply ac_incl;
   [apply so_ac_pio; apply Hsc_ord |
-    apply rel_incl_right; apply hb_in_so;
+    apply rel_incl_right; apply com_in_so;
       apply Hsc_ord].
 Qed.
 
-(** For any given location, there are no conflicts between the happens-before relation extracted from a sequential execution and the program order restricted to events reading from/writing to this location, and to pairs of events for which at least one of the events is a write
+(** For any given location, there are no conflicts between the communication relation extracted from a sequential execution and the program order restricted to events reading from/writing to this location, and to pairs of events for which at least one of the events is a write
 
 This condition corresponds to the [uniproc] condition *)
 
@@ -492,12 +492,12 @@ Lemma sc_hb_llh_wf :
   forall E so,
   seq_exec E so ->
   acyclic
-  (rel_union (hb E (sc_witness E so)) (pio_llh E)).
+  (rel_union (com E (sc_witness E so)) (pio_llh E)).
 Proof.
 intros E so Hsc_ord.
 eapply ac_incl;
   [apply so_ac_pio_llh; apply Hsc_ord |
-    apply rel_incl_right; apply hb_in_so;
+    apply rel_incl_right; apply com_in_so;
       apply Hsc_ord].
 Qed.
 
@@ -738,18 +738,18 @@ Qed.
 
 (** *** SC executions SC-check *)
 
-(** For any event structure, the union of the program order and of the program order is included in any sequential execution over this structure *)
+(** For any event structure, the union of the communication relation and of the program order is included in any sequential execution over this structure *)
 
-Lemma hb_po_in_so :
+Lemma com_po_in_so :
   forall E so,
   seq_exec E so ->
   rel_incl (rel_union (po_iico E)
-    (hb E (sc_witness E so))) so.
+    (com E (sc_witness E so))) so.
 Proof.
 intros E so Hsc x y Hxy.
 inversion Hxy.
   destruct Hsc as [? Hincl]; apply Hincl; auto.
-  apply (hb_in_so E so Hsc x y H).
+  apply (com_in_so E so Hsc x y H).
 Qed.
 
 (** For any event structure, the execution witness extracted from any sequential execution over this structure satisfies the [sc_check] condition *)
@@ -761,7 +761,7 @@ Lemma sc_witness_sc :
 Proof.
 intros E so Hsc; unfold sc_check.
 eapply incl_ac.
-  apply hb_po_in_so; auto.
+  apply com_po_in_so; auto.
   destruct Hsc as [Hlin ?]; generalize Hlin; intro Hl; destruct_lin Hlin;
   unfold acyclic; rewrite (lso_is_tc Hl); auto.
 Qed.
@@ -774,20 +774,20 @@ Section sc_carac.
 
 (** In a well-formed event structure with a well-formed execution witness, if:
 
-- The union of the program order and of the happens-before relation is acyclic
+- The union of the program order and of the communication relation is acyclic
 - There exists a total order on the events of the event structure
-- The union of the program order and of the happens-before relation is included in this total order
+- The union of the program order and of the communication relation is included in this total order
 
 Then, the write serialization of the execution witness is the same as the one extracted from the total order after applying [sc_witness] on it *)
 
-Lemma ac_po_hb_implies_same_ws :
+Lemma ac_po_com_implies_same_ws :
   forall E X so,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  acyclic (rel_union (po_iico E) (hb E X))->
+  acyclic (rel_union (po_iico E) (com E X))->
   linear_strict_order so (events E) ->
-  rel_incl (rel_union (po_iico E) (hb E X)) so ->
+  rel_incl (rel_union (po_iico E) (com E X)) so ->
   ws X = ws (sc_witness E so).
 Proof.
 intros E X so Hwf Hs Hacy Hlin Hincl.
@@ -796,7 +796,7 @@ assert (forall x y, (ws X) x y <-> (ws (sc_witness E so)) x y) as Hext.
   split; intro Hin;
 unfold sc_witness; unfold so_ws; simpl.
   split.
-  apply Hincl; right; unfold hb;
+  apply Hincl; right; unfold com;
   right; apply Hin.
   destruct_lin Hlin.
     generalize (ws_cands E X x y Hwswf Hin).
@@ -830,7 +830,7 @@ unfold sc_witness; unfold so_ws; simpl.
   inversion Horb as [Hws_xe | Hws_ex].
     exact Hws_xe.
     assert (so y x) as Hin_ex.
-      apply Hincl; unfold hb;
+      apply Hincl; unfold com;
         right; right; exact Hws_ex.
     assert (~(acyclic so)) as Hcontrad.
       unfold acyclic; unfold not; intro Hcy; apply (Hcy x).
@@ -847,7 +847,7 @@ Ltac destruct_lin H :=
 (** In well-formed event structure with an execution valid on the architecture [AWmm], if:
 
 - There exists a total order on the events of the event structure
-- The union of the program order and of the happens-before relation is included in this total order
+- The union of the program order and of the communication relation is included in this total order
 - Two events are related by the read-from relation extracted from this total order
 
 Then, these two events are related by the read-from relation of the execution.
@@ -858,7 +858,7 @@ Lemma sc_rf_ax :
   well_formed_event_structure E ->
   valid_execution E X ->
   linear_strict_order so (events E) ->
-  rel_incl (rel_union (po_iico E) (hb E X)) so ->
+  rel_incl (rel_union (po_iico E) (com E X)) so ->
   so_rfm E so x y ->
   rf X x y.
 Proof.
@@ -930,27 +930,27 @@ destruct (eqEv_dec w x)  as [Heq | Hdiff].
   generalize (Hac y); intro Hc; contradiction.
 Qed.
 
-(** For any execution valid on [AWmm], the read-from relation is included in the happens-before relation *)
+(** For any execution valid on [AWmm], the read-from relation is included in the communication relation *)
 
-Lemma rf_in_hb :
+Lemma rf_in_com:
   forall E X x y,
   valid_execution E X ->
   rf X x y ->
-  hb E X x y.
+  com E X x y.
 Proof.
 intros E X x y Hv Hrf.
 left; left; auto.
 Qed.
 
-(** In well-formed event structure with a valid execution that verifies the [sc_check] condition, if there is a total order on the events of the event structure such that the union of the program order and of the happens-before relation is included in it, then the read-from relation we can extract from this total order is equal to the read-from relation of the execution witness *)
+(** In well-formed event structure with a valid execution that verifies the [sc_check] condition, if there is a total order on the events of the event structure such that the union of the program order and of the communication relation is included in it, then the read-from relation we can extract from this total order is equal to the read-from relation of the execution witness *)
 
-Lemma so_rfm_po_hb_is_rf :
+Lemma so_rfm_po_com_is_rf :
   forall E X so,
   well_formed_event_structure E ->
   valid_execution E X ->
   sc_check E X ->
   linear_strict_order so (events E) ->
-  rel_incl (rel_union (po_iico E) (hb E X)) so ->
+  rel_incl (rel_union (po_iico E) (com E X)) so ->
   so_rfm E so = rf X.
 Proof.
 intros E X so Hwf Hvalid Hsc Hlin Hincl;
@@ -1013,13 +1013,13 @@ intros E X so Hwf Hvalid Hsc Hlin Hincl;
   generalize (Hac x'); intro Hco; contradiction.
 Qed.
 
-(** In a well-formed event structure with an execution valid on [AWmm], the domain and ranges of the union of the program order and of the happens-before relation are included in the set of events of the event structure *)
+(** In a well-formed event structure with an execution valid on [AWmm], the domain and ranges of the union of the program order and of the communication relation are included in the set of events of the event structure *)
 
 Lemma incl_udr_sc_check_in_events :
   forall E X,
   well_formed_event_structure E ->
   valid_execution E X ->
-    Included _ (udr (rel_union (po_iico E) (hb E X))) (events E).
+    Included _ (udr (rel_union (po_iico E) (com E X))) (events E).
 Proof.
 intros E X Hwf Hv.
 unfold udr; apply dom_ran_so_incl_po_hb; auto.
@@ -1047,12 +1047,12 @@ intros E rfm wsn Hwf; split; intro Hsc;
  exists so; unfold seq_exec; split;
     [split; [ | intros x y Hxy; apply Hincl; left; auto] | split].
 auto.
-rewrite (so_rfm_po_hb_is_rf E X so Hwf Hvalid Hsc Hlin Hincl); auto.
+rewrite (so_rfm_po_com_is_rf E X so Hwf Hvalid Hsc Hlin Hincl); auto.
 assert (write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X)) as Hs.
   destruct_valid Hvalid; split; split; auto.
 rewrite <- Hws;
-rewrite (ac_po_hb_implies_same_ws E X so Hwf Hs Hsc Hlin Hincl); auto.
+rewrite (ac_po_com_implies_same_ws E X so Hwf Hs Hsc Hlin Hincl); auto.
 (*rewrite <- Hsync;
 rewrite (ac_po_hb_implies_same_synchro E X so Hwf Hs Hsc Hlin Hincl); auto.*)
 exists (sc_witness E so); split;
@@ -1124,7 +1124,7 @@ Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
 
 Hypothesis ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 
 Hypothesis ab_fun :
   forall E X s x y,
@@ -1176,11 +1176,11 @@ intros E e1 e2 Hpo;
 apply Hpo.
 Qed.
 
-(** For any event structure, the union of the program order and of the happens-before relation is included in the global happens-before relation of the SC architecture *)
+(** For any event structure, the union of the program order and of the communication relation is included in the global happens-before relation of the SC architecture *)
 
-Lemma po_hb_in_ghb :
+Lemma po_com_in_ghb :
   forall E X,
-  rel_incl (rel_union (po_iico E) (hb E X)) (ghb E X).
+  rel_incl (rel_union (po_iico E) (com E X)) (ghb E X).
 Proof.
 intros E X x y Hxy.
 inversion Hxy.
@@ -1205,7 +1205,7 @@ Proof.
 unfold sc_check;
 intros E X Hwf Hvalid.
 destruct_valid Hvalid.
-generalize (po_hb_in_ghb); intro Hincl.
+generalize (po_com_in_ghb); intro Hincl.
 apply (incl_ac (Hincl E X)); auto.
 Qed.
 
@@ -1299,10 +1299,10 @@ Proof.
    destruct H; apply ABasic.po_iico_range_in_events with r1; auto.
 Qed.
 
-(** For any event structure and execution witness, [ABTh] is included in the transitive closure of the union of the happens-before relation and of the program order *)
+(** For any event structure and execution witness, [ABTh] is included in the transitive closure of the union of the communication relation and of the program order *)
 
 Lemma ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 Proof.
 intros E X x y Hxy.
 induction Hxy as [x y z Hnc | x y z Hac | x y z Hbc].
@@ -1462,16 +1462,16 @@ Import SyncThAx.
 
 Import ScModel.
 
-(** In a well-formed event structure with an execution valid on the alternative SC memory model, the sequence of the happens-before relation and of the program order is included in the union of:
+(** In a well-formed event structure with an execution valid on the alternative SC memory model, the sequence of the communication relation and of the program order is included in the union of:
 
 - the sequence of the union of write serialization and from-read, and of [ABTh]
 - [ABTh] *)
 
-Lemma hb_seq_pb_incl_ws_u_fr_seq_ab :
+Lemma com_seq_pb_incl_ws_u_fr_seq_ab :
   forall E X,
   well_formed_event_structure E ->
   valid_execution E X ->
-  rel_incl (rel_seq (hb E X) (pb E)) (rel_union (rel_seq (rel_union (ws X) (fr E X)) (abc E X)) (abc E X)).
+  rel_incl (rel_seq (com E X) (pb E)) (rel_union (rel_seq (rel_union (ws X) (fr E X)) (abc E X)) (abc E X)).
 Proof.
 intros E X Hwf Hv x y [z [Hhb_xz Hpo_zy]].
   inversion Hhb_xz as [Hrf_fr | Hws].
@@ -1548,26 +1548,26 @@ eapply Left with z.
  auto. *)
 Qed.
 
-(** In a well-formed event structure with an execution valid on the alternativ SC memory model, the sequence of [hb'] and program order is included in the union of:
+(** In a well-formed event structure with an execution valid on the alternativ SC memory model, the sequence of [com'] and program order is included in the union of:
 
 - the sequence of the union of write serialization and from-read, and of the [ABTh]
 - [ABTh] *)
 
-Lemma hb'_seq_po_incl_ws_u_fr_seq_ab :
+Lemma com'_seq_po_incl_ws_u_fr_seq_ab :
   forall E X,
   well_formed_event_structure E ->
   valid_execution E X ->
   (rel_incl (po_iico E) (pb E)) ->
-  rel_incl (rel_seq (hb' E X) (po_iico E)) (rel_union (rel_seq (rel_union (ws X) (fr E X)) (abc E X)) (abc E X)).
+  rel_incl (rel_seq (com' E X) (po_iico E)) (rel_union (rel_seq (rel_union (ws X) (fr E X)) (abc E X)) (abc E X)).
 Proof.
 intros E X Hwf Hv Hincl x y Hxy.
 destruct Hxy as [z [Hhb'_xz Hpo_zy]].
 generalize (Hincl z y Hpo_zy); intro Hpb_zy.
 inversion Hhb'_xz as [Hhb_wsrf | Hfr_rf_xz].
   inversion Hhb_wsrf as [Hhb_xz | Hwsrf_xz].
-    assert (rel_seq (hb E X) (pb E) x y) as Hhb_pb_xy.
+    assert (rel_seq (com E X) (pb E) x y) as Hhb_pb_xy.
       exists z; auto.
-    apply (hb_seq_pb_incl_ws_u_fr_seq_ab E X Hwf Hv x y Hhb_pb_xy).
+    apply (com_seq_pb_incl_ws_u_fr_seq_ab E X Hwf Hv x y Hhb_pb_xy).
     assert (rel_seq (rel_seq (ws X) (rf X)) (pb E) x y) as Hwsrf_pb_xy.
       exists z; auto.
     left; apply (wsrf_seq_pb_incl_ws_u_fr_seq_ab E X Hwf Hv x y Hwsrf_pb_xy).
@@ -1576,42 +1576,42 @@ inversion Hhb'_xz as [Hhb_wsrf | Hfr_rf_xz].
     left; apply (frrf_seq_pb_incl_ws_u_fr_seq_ab E X Hwf Hv x y Hfrrf_pb_xy).
 Qed.
 
-(** In a well-formed event structure with an execution valid on the alternative SC memory model, the transitive closure of the sequence of [hb'] and of the program order is included in the union of:
+(** In a well-formed event structure with an execution valid on the alternative SC memory model, the transitive closure of the sequence of [com'] and of the program order is included in the union of:
 
 - the sequence of the union of write serialization and from-read, and of [ABTh]
 - [ABTh] *)
 
-Lemma hb'_seq_po_path_implies_ws_u_fr_seq_ab_path :
+Lemma com'_seq_po_path_implies_ws_u_fr_seq_ab_path :
   forall E X x y,
   well_formed_event_structure E ->
   valid_execution E X ->
   (rel_incl (po_iico E) (pb E)) ->
-  tc (rel_seq (hb' E X) (po_iico E)) x y ->
+  tc (rel_seq (com' E X) (po_iico E)) x y ->
   tc (rel_union (rel_seq (rel_union (ws X) (fr E X)) (abc E X)) (abc E X)) x y.
 Proof.
 intros E X x y Hwf Hv Hincl Htc.
 induction Htc.
-  apply trc_step; apply (hb'_seq_po_incl_ws_u_fr_seq_ab E X Hwf Hv Hincl x y H).
+  apply trc_step; apply (com'_seq_po_incl_ws_u_fr_seq_ab E X Hwf Hv Hincl x y H).
   apply trc_ind with z; auto.
 Qed.
 
-(** In a well-formed event structure with an execution valid on the alternative SC memory model, the union of the happens-before relation and of the program order is acyclic *)
+(** In a well-formed event structure with an execution valid on the alternative SC memory model, the union of the communication relation and of the program order is acyclic *)
 
-Lemma po_in_pb_implies_ac_hb_po : (*this is the real important lemma*)
+Lemma po_in_pb_implies_ac_com_po : (*this is the real important lemma*)
   forall E X,
   well_formed_event_structure E ->
   valid_execution E X ->
   (rel_incl (po_iico E) (pb E)) ->
-  acyclic (rel_union (hb E X) (po_iico E)).
+  acyclic (rel_union (com E X) (po_iico E)).
 Proof.
 intros E X Hwf Hvalid Hincl.
 unfold acyclic; unfold not; intros x Hx.
 assert (write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X)) as Hs.
   destruct_valid Hvalid; split; split; auto.
-generalize (hb_union_po_cycle_implies_hb'_seq_po_cycle Hwf Hs Hx); intro Hy.
+generalize (com_union_po_cycle_implies_com'_seq_po_cycle Hwf Hs Hx); intro Hy.
 destruct Hy as [y Hy].
-generalize (hb'_seq_po_path_implies_ws_u_fr_seq_ab_path E X y y Hwf Hvalid Hincl Hy); intro Hp.
+generalize (com'_seq_po_path_implies_ws_u_fr_seq_ab_path E X y y Hwf Hvalid Hincl Hy); intro Hp.
 generalize (ws_u_fr_seq_ab_path_implies_ghb_path Hwf Hvalid Hp); intro Hc.
 destruct_valid Hvalid.
 unfold acyclic in Hvalid; apply (Hvalid y Hc).
@@ -1627,10 +1627,10 @@ Lemma barriers_provide_sc_exec :
   (exists so, (seq_exec E so) /\ (so_rfm E so = rf X) /\ so_ws so = ws X).
 Proof.
 intros E X Hwf Hvalid Hpo_in_pb.
-generalize (po_in_pb_implies_ac_hb_po E X Hwf Hvalid Hpo_in_pb); intro Hac.
+generalize (po_in_pb_implies_ac_com_po E X Hwf Hvalid Hpo_in_pb); intro Hac.
   generalize (sc_carac E (rf X) (ws X) Hwf); intros [dir bak].
 apply dir; exists X; split; [auto | unfold sc_check; split; auto].
-rewrite (union_triv (po_iico E) (hb E X)); auto.
+rewrite (union_triv (po_iico E) (com E X)); auto.
 Qed.
 
 End ABTh.

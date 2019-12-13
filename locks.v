@@ -49,7 +49,7 @@ Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
 
 Hypothesis ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 
 Hypothesis ab_fun :
   forall E X s x y,
@@ -98,7 +98,7 @@ intros E X x y Hwf Hrf Hxy. inversion Hxy.
 Qed.
 
 Lemma ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 Proof.
 intros E X x y Hxy. inversion Hxy.
 Qed.
@@ -231,7 +231,7 @@ Definition happens_before E X :=
   tc (rel_union (po_iico E) (sync E X)).
 
 Hypothesis happens_before_compat_com :
-  forall E X x y, hb E X x y -> ~(happens_before E X y x).
+  forall E X x y, com E X x y -> ~(happens_before E X y x).
 
 Definition competing E (X:Execution_witness) :=
   fun e1 => fun e2 => events E e1 /\ events E e2 /\
@@ -1300,7 +1300,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
 
           destruct (eqEv_dec w ws2) as [Heq | Hneq].
 
-          assert (tc (rel_union (hb E X) (pio_llh E)) w w) as Hcy.
+          assert (tc (rel_union (com E X) (pio_llh E)) w w) as Hcy.
             apply trc_ind with (Read cs2); apply trc_step.
             left; left; left; auto.
             right; split; auto; subst; auto.
@@ -1333,7 +1333,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
            split; auto.
           destruct_valid Hv; generalize (ws_tot E X (Hws_tot l) Hand Hneq); intro Hor.
           inversion Hor; auto.
-          assert (tc (rel_union (hb E X) (pio_llh E)) w w) as Hcy.
+          assert (tc (rel_union (com E X) (pio_llh E)) w w) as Hcy.
             apply trc_ind with (Read cs2). apply trc_step;
             left; left; left; auto.
             apply trc_ind with ws2; apply trc_step.
@@ -1353,7 +1353,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
 
           destruct (eqEv_dec w ws3) as [Heq | Hneq].
 
-          assert (tc (rel_union (hb E X) (pio_llh E)) w w) as Hcy.
+          assert (tc (rel_union (com E X) (pio_llh E)) w w) as Hcy.
             apply trc_ind with (Read cs3); apply trc_step.
             left; left; left; auto.
             right; split; auto; subst; auto.
@@ -1386,7 +1386,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
            split; auto.
           destruct_valid Hv; generalize (ws_tot E X (Hws_tot l) Hand Hneq); intro Hor.
           inversion Hor; auto.
-          assert (tc (rel_union (hb E X) (pio_llh E)) w w) as Hcy.
+          assert (tc (rel_union (com E X) (pio_llh E)) w w) as Hcy.
             apply trc_ind with (Read cs3). apply trc_step;
             left; left; left; auto.
             apply trc_ind with ws3; apply trc_step.
@@ -1435,7 +1435,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
              destruct Hr3; auto.
            generalize (same_proc_implies_po ws2 (Read cs3) Hwf Heqp23 Hews2 Her3); intro Hor.
            inversion Hor; auto.
-           assert (tc (rel_union (hb E X) (pio_llh E)) (Read cs3) (Read cs3)) as Hcy.
+           assert (tc (rel_union (com E X) (pio_llh E)) (Read cs3) (Read cs3)) as Hcy.
              apply trc_ind with ws2; apply trc_step.
                left; left; right; auto.
                right; split; auto.
@@ -1457,7 +1457,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
              destruct Hw3; auto.
            generalize (same_proc_implies_po ws2 ws3 Hwf Heqp Hews2 Hews3); intro Hor.
            inversion Hor; auto.
-           assert (tc (rel_union (hb E X) (pio_llh E)) ws3 ws3) as Hcy.
+           assert (tc (rel_union (com E X) (pio_llh E)) ws3 ws3) as Hcy.
              apply trc_ind with ws2; apply trc_step.
                right; split; auto.
                apply sym_eq;
@@ -1489,7 +1489,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
              destruct Hr2; auto.
            generalize (same_proc_implies_po ws3 (Read cs2) Hwf Heqp23 Hews3 Her2); intro Hor.
            inversion Hor; auto.
-           assert (tc (rel_union (hb E X) (pio_llh E)) (Read cs2) (Read cs2)) as Hcy.
+           assert (tc (rel_union (com E X) (pio_llh E)) (Read cs2) (Read cs2)) as Hcy.
              apply trc_ind with ws3; apply trc_step.
                left; left; right; auto.
                right; split; auto.
@@ -1511,7 +1511,7 @@ destruct Hcs2 as [[Htk2 ?] ?]; destruct Hcs3 as [[Htk3 ?] ?].
              destruct Hw2; auto.
            generalize (same_proc_implies_po ws3 ws2 Hwf Heqp Hews3 Hews2); intro Hor.
            inversion Hor; auto.
-           assert (tc (rel_union (hb E X) (pio_llh E)) ws2 ws2) as Hcy.
+           assert (tc (rel_union (com E X) (pio_llh E)) ws2 ws2) as Hcy.
              apply trc_ind with ws3; apply trc_step.
                right; split; auto.
                apply sym_eq;

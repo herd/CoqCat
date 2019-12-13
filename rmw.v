@@ -55,7 +55,7 @@ apply ABasic.po_iico_domain_in_events with y; auto.
 apply ABasic.po_iico_range_in_events with x; auto.
 Qed.
 Lemma ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 Proof.
 intros E X x y Hxy. inversion Hxy.
 apply trc_step; right; auto.
@@ -110,7 +110,7 @@ Proof.
 intros E X x y Hwf Hrf Hxy. inversion Hxy.
 Qed.
 Lemma ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 Proof.
 intros E X x y Hxy. inversion Hxy.
 Qed.
@@ -214,7 +214,7 @@ split; destruct Hxy; destruct Hyz;
 Qed.
 
 Definition hbd (E:Event_struct) (X:Execution_witness) : Rln Event :=
-  fun e1 => fun e2 => hb E X e1 e2 /\ proc_of e1 <> proc_of e2.
+  fun e1 => fun e2 => com E X e1 e2 /\ proc_of e1 <> proc_of e2.
 
 (*Definition ppo_Wl E :=
   fun e1 => fun e2 => A.ppo E e1 e2 /\ writes E e1.*)
@@ -257,7 +257,7 @@ assert (ws X w wr \/ ws X wr w) as Hor.
 
       assert (w = wr) as Heq.
         apply NNPP; auto.
-    assert (tc (rel_union (hb E X) (pio_llh E)) r r) as Hcy.
+    assert (tc (rel_union (com E X) (pio_llh E)) r r) as Hcy.
       rewrite <- Heq in Hporw.
       apply trc_ind with w; apply trc_step; [right; split; auto | left; left; left; auto].
       apply sym_eq; apply rf_implies_same_loc2 with E X; auto.
@@ -294,7 +294,7 @@ assert (ws X w wr \/ ws X wr w) as Hor.
           split.
             apply po_iico_range_in_events with r; auto.
             exists w; split; auto.
-            assert (tc (rel_union (hb E X) (pio_llh E)) w w) as Hc.
+            assert (tc (rel_union (com E X) (pio_llh E)) w w) as Hc.
               apply trc_ind with r.
                 apply trc_step; left; left; left; auto.
                 apply trc_ind with wr; apply trc_step.
@@ -350,7 +350,7 @@ assert (ws X w wr \/ ws X wr w) as Hor.
 
       assert (w = wr) as Heq.
         apply NNPP; auto.
-    assert (tc (rel_union (hb E X) (pio_llh E)) r r) as Hcy.
+    assert (tc (rel_union (com E X) (pio_llh E)) r r) as Hcy.
       rewrite <- Heq in Hporw.
       apply trc_ind with w; apply trc_step; [right; split; auto | left; left; left; auto].
       apply sym_eq; apply rf_implies_same_loc2 with E X; auto.
@@ -391,7 +391,7 @@ assert (ws X w wr \/ ws X wr w) as Hor.
           split.
             apply po_iico_range_in_events with r'; auto.
             exists w; split; auto.
-            assert (tc (rel_union (hb E X) (pio_llh E)) w w) as Hc.
+            assert (tc (rel_union (com E X) (pio_llh E)) w w) as Hc.
               apply trc_ind with r.
                 apply trc_step; left; left; left; auto.
                 apply trc_ind with wr; apply trc_step.
@@ -465,7 +465,7 @@ destruct_valid Hv; generalize (Hrf_init x Hrx);
     destruct Hwxy; auto.
     destruct Hywx as [Hywx ?].
     assert False as Htriv.
-      assert (tc (rel_union (hb E X) (pio_llh E)) wx wx) as Hcy.
+      assert (tc (rel_union (com E X) (pio_llh E)) wx wx) as Hcy.
         apply trc_ind with x;
         [apply trc_step; left; left; left |
          apply trc_ind with y; apply trc_step;
@@ -479,7 +479,7 @@ destruct_valid Hv; generalize (Hrf_init x Hrx);
     apply NNPP; auto.
 
     assert False as Htriv.
-      assert (tc (rel_union (hb E X) (pio_llh E)) wx wx) as Hcy.
+      assert (tc (rel_union (com E X) (pio_llh E)) wx wx) as Hcy.
         apply trc_ind with x;
         [apply trc_step; left; left; left |
          subst; apply trc_step; right; split; [|split]]; auto.

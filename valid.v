@@ -178,7 +178,7 @@ Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
 
 Hypothesis ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 
 Hypothesis ab_fun :
   forall E X s x y,
@@ -405,12 +405,12 @@ destruct (eqEv_dec w1 w2) as [Hy | Hn].
         apply sym_eq; apply (Hmax_w2x w1); split; auto.
 Qed.
 
-(** The happens-before extracted from a valid partial execution is included in the linear extension of the valid partial execution *)
+(** The communication relation extracted from a valid partial execution is included in the linear extension of the valid partial execution *)
 
-Lemma hb_in_so :
+Lemma com_in_so :
   forall E so,
   vexec E so ->
-  rel_incl (hb E (vwitness E so)) (LE so).
+  rel_incl (com E (vwitness E so)) (LE so).
 Proof.
 unfold rel_incl; intros E so Hsc_ord x y Hhb.
 inversion Hhb as [Hrf_fr | Hws]; unfold vwitness in *; simpl in *.
@@ -456,21 +456,21 @@ destruct (eqEv_dec x y) as [Heq | Hdiff].
   destruct Hws as [Hso Hrest]; apply Hso.
 Qed.
 
-(** For any given location, there are no conflicts between the happens-before relation extracted from a valid partial execution and the program order restricted to events reading from/writing to this location, and to pairs of events for which at least one of the events is a write.
+(** For any given location, there are no conflicts between the communication relation extracted from a valid partial execution and the program order restricted to events reading from/writing to this location, and to pairs of events for which at least one of the events is a write.
 
 This condition corresponds to the [uniproc] condition *)
 
-Lemma sc_hb_llh_wf :
+Lemma sc_com_llh_wf :
   forall E so,
   vexec E so ->
   acyclic
-  (rel_union (hb E (vwitness E so)) (pio_llh E)).
+  (rel_union (com E (vwitness E so)) (pio_llh E)).
 Proof.
 intros E so Hsc_ord.
 generalize Hsc_ord; intros [Hpart [? Hincl]].
 eapply ac_incl;
   [ |
-    apply rel_incl_right; apply hb_in_so;
+    apply rel_incl_right; apply com_in_so;
       apply Hsc_ord].
 rewrite union_triv; auto.
 Qed.
@@ -752,7 +752,7 @@ split.
 { eapply sc_rf_wf; auto. }
 split.
 (* uniprocessor condition *)
-{ eapply sc_hb_llh_wf; auto. }
+{ eapply sc_com_llh_wf; auto. }
 split.
 (* out-of-thin-air condition *)
 { eapply sc_exec_thin; auto. }
@@ -777,12 +777,12 @@ intros X x y Hxy; inversion Hxy as [Hi | He].
   inversion He; auto.
 Qed.
 
-(** For any event structure and any execution witness, the [ahb] relation is always included in the happens-before relation *)
+(** For any event structure and any execution witness, the [ahb] relation is always included in the communication relation *)
 
-Lemma ahb_in_hb :
+Lemma ahb_in_com:
   forall E X x y,
   ahb E X x y ->
-  hb E X x y.
+  com E X x y.
 Proof.
 intros E X x y Hxy; inversion Hxy as [Hrffr | Hws]; [left | right]; auto.
 inversion Hrffr as [Hrf | Hfr]; [left | right]; auto.
@@ -804,9 +804,9 @@ inversion Hxy.
     intros e He; auto.
     generalize (OE Htriv Hpart); intros [Hinc Hle].
   generalize H; apply sc_ppo_in_so; auto.
-  assert (hb E (vwitness E so) x y) as Hhb.
-    apply ahb_in_hb; auto.
-  apply (hb_in_so E so Hsc x y Hhb).
+  assert (com E (vwitness E so) x y) as Hhb.
+    apply ahb_in_com; auto.
+  apply (com_in_so E so Hsc x y Hhb).
 Qed.
 
 (** In a well-formed event structure, any execution witness extracted from any valid partial execution on the event structure respects the [sc_check] property *)
@@ -837,20 +837,20 @@ Ltac destruct_lin H :=
 
 (** In well-formed event structure with a well-formed execution witness and an arbitrary order [so] on the events of the event structure, if:
 
-- The union of the preserved program order and of the happens-before relation is acyclic
+- The union of the preserved program order and of the communication relation is acyclic
 - Any linear extension of [so] is a strict linear order
-- The union of the preserved program order and of the happens-before relation is included in any linear extension of [so]
+- The union of the preserved program order and of the communication relation is included in any linear extension of [so]
 
 Then the write serialization of the execution witness is the same as the one extracted from [so] *)
 
-Lemma ac_po_hb_implies_same_ws :
+Lemma ac_po_com_implies_same_ws:
   forall E X so,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  acyclic (rel_union (ppo E) (hb E X))->
+  acyclic (rel_union (ppo E) (com E X))->
   linear_strict_order (LE so) (events E) ->
-  rel_incl (rel_union (ppo E) (hb E X)) (LE so) ->
+  rel_incl (rel_union (ppo E) (com E X)) (LE so) ->
   ws X = ws (vwitness E so).
 Proof.
 intros E X so Hwf Hs Hacy Hlin Hincl.
@@ -859,7 +859,7 @@ assert (forall x y, (ws X) x y <-> (ws (vwitness E so)) x y) as Hext.
   split; intro Hin;
 unfold vwitness; unfold so_ws; simpl.
   split.
-  apply Hincl; right; unfold hb;
+  apply Hincl; right; unfold com;
   right; apply Hin.
   destruct_lin Hlin.
     generalize (ws_cands E X x y Hwswf Hin).
@@ -893,7 +893,7 @@ unfold vwitness; unfold so_ws; simpl.
   inversion Horb as [Hws_xe | Hws_ex].
     exact Hws_xe.
     assert (LE so y x) as Hin_ex.
-      apply Hincl; unfold hb;
+      apply Hincl; unfold com;
         right; right; exact Hws_ex.
     assert (~(acyclic (LE so))) as Hcontrad.
       unfold acyclic; unfold not; intro Hcy; apply (Hcy x).
@@ -916,7 +916,7 @@ Ltac destruct_lin H :=
 (** In a well-formed event structure with a valid execution witness and an arbitrary order [so] on the events of the event structure, if:
 
 - Any linear extension of [so] is a strict linear order
-- The union of the preserved program order and of the happens-before relation is included in any linear extension of [so]
+- The union of the preserved program order and of the communication relation is included in any linear extension of [so]
 
 Then the read-from relation extracted from [so] is included in the read-from relation of the execution witness *)
 
@@ -925,7 +925,7 @@ Lemma sc_rf_ax :
   well_formed_event_structure E ->
   valid_execution E X ->
   linear_strict_order (LE so) (events E) ->
-  rel_incl (rel_union (ppo E) (hb E X)) (LE so) ->
+  rel_incl (rel_union (ppo E) (com E X)) (LE so) ->
   so_rfm E so x y ->
   rf X x y (*\/ init E x*).
 Proof.
@@ -1000,13 +1000,13 @@ destruct (eqEv_dec w x)  as [Heq | Hdiff].
   generalize (Hac y); intro Hc; contradiction.
 Qed.
 
-(** The read-from relation of a valid execution witness is always included in the happens-before relation of this execution *)
+(** The read-from relation of a valid execution witness is always included in the communication relation of this execution *)
 
-Lemma rf_in_hb :
+Lemma rf_in_com:
   forall E X x y,
   valid_execution E X ->
   rf X x y ->
-  hb E X x y.
+  com E X x y.
 Proof.
 intros E X x y Hv Hrf.
 left; left; auto.
@@ -1015,18 +1015,18 @@ Qed.
 (** In a well-formed event structure, with a valid execution that verifies the [sc_check] property, and with an arbitrary order [so] on the events of the event structure, if:
 
 - Any linear extension of [so] is a strict linear order
-- The union of preserved program order and of the happens-before relaiton is included in any linear extension of [so]
+- The union of preserved program order and of the communication relation is included in any linear extension of [so]
 
 Then the read-from relation extracted from [so] is the same as the read-from of the execution witness
 *) 
 
-Lemma so_rfm_po_hb_is_rf :
+Lemma so_rfm_po_com_is_rf:
   forall E X so,
   well_formed_event_structure E ->
   valid_execution E X ->
   sc_check E X ->
   linear_strict_order (LE so) (events E) ->
-  rel_incl (rel_union (ppo E) (hb E X)) (LE so) ->
+  rel_incl (rel_union (ppo E) (com E X)) (LE so) ->
   so_rfm E so = rf X.
 Proof.
 intros E X so Hwf Hvalid Hsc Hlin Hincl;
@@ -1089,13 +1089,13 @@ intros E X so Hwf Hvalid Hsc Hlin Hincl;
   generalize (Hac x'); intro Hco; contradiction.
 Qed.
 
-(** In a well-formed event structure, the domain and range of the preserved program order and of the happens-before relation of any valid execution witness are included int the set of events of the event structure *)
+(** In a well-formed event structure, the domain and range of the preserved program order and of the communication relation of any valid execution witness are included int the set of events of the event structure *)
 
 Lemma incl_udr_sc_check_in_events :
   forall E X,
   well_formed_event_structure E ->
   valid_execution E X ->
-    Included _ (udr (rel_union (ppo E) (hb E X))) (events E).
+    Included _ (udr (rel_union (ppo E) (com E X))) (events E).
 Proof.
 intros E X Hwf Hv.
 intros x Hx; inversion Hx as [x0 Hd | x0 Hr].

@@ -1023,7 +1023,7 @@ eapply iico_range_incl_in_events; [exact Hwf | apply Hiico].
 Qed.
 
 (** In a well-formed event structure, with a well-formed execution witness, the
-range and the domain of the happens-before relation contain only events from
+range and the domain of the communication relation contain only events from
 the event structure *)
 
 Lemma hb_ran_in_evts :
@@ -1031,7 +1031,7 @@ Lemma hb_ran_in_evts :
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (hb E X) y x ->
+  (com E X) y x ->
   In _ (events E) x.
 Proof.
 intros E X x y Hwf [Hwswf Hrfwf] Hhb.
@@ -1053,7 +1053,7 @@ Lemma hb_dom_in_evts :
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (hb E X) x y ->
+  (com E X) x y ->
   In _ (events E) x.
 Proof.
 intros E X x y Hwf [Hwswf Hrfwf] Hhb.
@@ -1137,7 +1137,7 @@ Lemma hb_domain_in_events (E:Event_struct) (X:Execution_witness) (e e0:Event) :
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (hb E X) e e0 -> In _ (events E) e.
+  (com E X) e e0 -> In _ (events E) e.
 Proof.
 intros Hwf Hvalid Hhb.
 apply (hb_dom_in_evts Hwf Hvalid Hhb).
@@ -1147,7 +1147,7 @@ Lemma hb_range_in_events (E:Event_struct) (X:Execution_witness) (e e0:Event) :
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (hb E X) e e0 -> In _ (events E) e0.
+  (com E X) e e0 -> In _ (events E) e0.
 Proof.
 intros Hwf Hs Hhb.
 apply (hb_ran_in_evts Hwf Hs Hhb).
@@ -1486,7 +1486,7 @@ contradiction.
 Qed.
 
 (** In a well-formed event structure, with a well-formed execution witness, the
-domains and the range of both the program order and the happens-before relation
+domains and the range of both the program order and the communication relation
 are included in the events of the event structure *)
 
 Lemma po_union_hb_in_evts :
@@ -1495,8 +1495,8 @@ Lemma po_union_hb_in_evts :
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
   Included _
-    (Union _ (dom (rel_union (po_iico E) (hb E X)))
-       (ran (rel_union (po_iico E) (hb E X)))) (events E).
+    (Union _ (dom (rel_union (po_iico E) (com E X)))
+       (ran (rel_union (po_iico E) (com E X)))) (events E).
 Proof.
 unfold Included; unfold domain; unfold range; unfold In;
 intros E X Hwf Hvalid x Hx.
@@ -1528,8 +1528,8 @@ Lemma dom_ran_so_incl_po_hb :
   (well_formed_event_structure E) ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  Included _ (Union _ (dom (rel_union (po_iico E) (hb E X)))
-       (ran (rel_union (po_iico E) (hb E X)))) (events E).
+  Included _ (Union _ (dom (rel_union (po_iico E) (com E X)))
+       (ran (rel_union (po_iico E) (com E X)))) (events E).
 Proof.
 intros E X Hwf Hvalid;
 apply po_union_hb_in_evts; auto.
@@ -1541,10 +1541,9 @@ End DomRan.
 
 Section Hexa.
 
-(** [hb'] is the union of:
+(** [com'] is the union of:
 
-- The happens-before relation (corresponding to the communication relation in
-(A Shared Memory Poetics, 2010, Jade Alglave)
+- The communication relation
 - The sequence of write serialization and read-from. This relation is, in some
 sense, the opposite of from-read. From-read relates reads with the writes that
 occured after the write of the value that the read event reads. The sequence of
@@ -1555,12 +1554,12 @@ that read from the same location, but values written by two different read
 events.
 
 NOTE: (A Shared Memory Poetics, 2010, Jade Alglave), section 3.4.1.2, states
-it is easy to prove that hb' is the transitive closure of hb.
+it is easy to prove that [com'] is the transitive closure of hb.
 *)
 
-Definition hb' (E:Event_struct) (X:Execution_witness) : Rln Event :=
+Definition com' (E:Event_struct) (X:Execution_witness) : Rln Event :=
   fun e1 => fun e2 => 
-    (rel_union (rel_union (hb E X) (rel_seq (ws X) (rf X))) 
+    (rel_union (rel_union (com E X) (rel_seq (ws X) (rf X))) 
                (rel_seq (fr E X) (rf X))) e1 e2.
 
 (** Reflexive closure of program order *)
@@ -1568,15 +1567,15 @@ Definition hb' (E:Event_struct) (X:Execution_witness) : Rln Event :=
 Definition maybe_po (E:Event_struct) : Rln Event :=
   fun e1 => fun e2 => (po_iico E) e1 e2 \/ e1 = e2.
 
-(** Reflexive closure of hb' *)
+(** Reflexive closure of [com'] *)
 
 Definition maybe_hb' (E:Event_struct) (X:Execution_witness) : Rln Event :=
-  fun e1 => fun e2 => (hb' E X) e1 e2 \/ e1 = e2.
+  fun e1 => fun e2 => (com' E X) e1 e2 \/ e1 = e2.
 
-(** Pre-hexa of hb' and program order *)
+(** Pre-hexa of [com'] and program order *)
 
 Definition pre_hexa (E:Event_struct) (X:Execution_witness) : Rln Event :=
-  fun e1 => fun e2 => (tc (rel_seq (hb' E X) (po_iico E))) e1 e2 \/ e1 = e2.
+  fun e1 => fun e2 => (tc (rel_seq (com' E X) (po_iico E))) e1 e2 \/ e1 = e2.
 
 (** Hexa of hb' and program order *)
 
@@ -1589,12 +1588,12 @@ Definition hexa (E:Event_struct) (X:Execution_witness) : Rln Event :=
 Definition pb (E:Event_struct) : Rln Event := po_iico E.
 
 (** The pb relation is included in the transitive closure of the union of the
-happens-before and program order relations. Since pb is the program order, it
+communication and program order relations. Since pb is the program order, it
 is a trivial fact *)
 
-Lemma pb_in_hb_po :
+Lemma pb_in_com_po :
   forall E X,
-  rel_incl (pb E) (tc (rel_union (hb E X) (po_iico E))).
+  rel_incl (pb E) (tc (rel_union (com E X) (po_iico E))).
 Proof.
 unfold Included; unfold In; unfold pb;
 intros E X x e Hpb.
@@ -1602,15 +1601,15 @@ apply trc_step; right; auto.
 Qed.
 
 (** In well-formed event structure with a well-formed execution witness, the 
-domain and the range of [hb'] are included in the set of events of the event
+domain and the range of [com'] are included in the set of events of the event
 structure *)
 
-Lemma hb'_dom_in_evts :
+Lemma com'_dom_in_evts :
   forall E X x y,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (hb' E X) x y ->
+  (com' E X) x y ->
   In _ (events E) x.
 Proof.
 intros E X x y Hwf Hvalid Hhb'.
@@ -1624,12 +1623,12 @@ inversion Hhb' as [Hhb_wsrf | Hfrrf].
   eapply dom_fr_in_events; [apply Hwf | apply Hfr].
 Qed.
 
-Lemma hb'_ran_in_evts :
+Lemma com'_ran_in_evts :
   forall E X x y,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (hb' E X) x y ->
+  (com' E X) x y ->
   In _ (events E) y.
 Proof.
 intros E X x y Hwf Hvalid Hhb'.
@@ -1647,11 +1646,11 @@ Qed.
 (** With a well-formed execution witness, the communication relation is
     irreflexive *)
 
-Lemma hb_ac :
+Lemma com_ac :
   forall E X x,
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  ~(hb E X x x).
+  ~(com E X x x).
 Proof.
 unfold not;
 intros E X x [Hwswf Hrfwf] Hhb.
@@ -1689,19 +1688,16 @@ inversion Hhb as [Hrf_fr | Hws].
   generalize (ws_cy E X x Hws_tot Hws_cands); intro Hc; contradiction.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if a
-first event is related to a second event by happens-before, and if the 
-second event is related to a third event by happens-before, then the first
-and the third event are related by [hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if a first event is related to a second event by the communication relation, and if the second event is related to a third event by the communication relation, then the first and the third event are related by [com'] *)
 
-Lemma hb_seq_hb_implies_hb' :
+Lemma com_seq_com_implies_com' :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X x y ->
-  hb E X y z ->
-  hb' E X x z.
+  com E X x y ->
+  com E X y z ->
+  com' E X x z.
 Proof.
 intros E X x y z Hwf [Hwswf Hrfwf] Hxy Hyz.
 inversion Hxy as [Hrf_fr_xy | Hws_xy];
@@ -1737,19 +1733,16 @@ inversion Hyz as [Hrf_fr_yz | Hws_yz].
     apply (ws_trans E X x y z Hwswf Hws_xy Hws_yz).
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if a
-first event is related to a second event by happens-before, and if the 
-second event is related to a third event by the squence of ws and rf, then
-the first and the third event are related by [hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if a first event is related to a second event by the communication relation, and if the second event is related to a third event by the sequence of ws and rf, then the first and the third event are related by [com'] *)
 
-Lemma hb_seq_ws_rf_implies_hb' :
+Lemma com_seq_ws_rf_implies_com' :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X x y ->
+  com E X x y ->
   rel_seq (ws X) (rf X) y z ->
-  hb' E X x z.
+  com' E X x z.
 Proof.
 intros E X x y z Hwf [Hwswf Hrfwf] Hxy Hyz.
 inversion Hxy as [Hrf_fr_xy | Hws_xy].
@@ -1770,18 +1763,15 @@ inversion Hxy as [Hrf_fr_xy | Hws_xy].
       left; right; exists wz; split; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if a
-first event is related to a second event by happens-before, and if the 
-second event is related to a third event by the squence of fr and rf, then
-the first and the third event are related by [hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if a first event is related to a second event by the communcation relation, and if the second event is related to a third event by the squence of fr and rf, then the first and the third event are related by [com'] *)
 
-Lemma hb_seq_fr_rf_implies_hb' :
+Lemma com_seq_fr_rf_implies_com' :
   forall E X x y z,
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X x y ->
+  com E X x y ->
   rel_seq (fr E X) (rf X) y z ->
-  hb' E X x z.
+  com' E X x z.
 Proof.
 intros E X x y z Hs Hxy Hyz.
 generalize Hs; intros [Hwswf Hrfwf].
@@ -1802,41 +1792,34 @@ inversion Hxy as [Hrf_fr_xy | Hws_xy].
     rewrite Hwy in Hry; inversion Hry.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if a
-first event is related to a second event by happens-before, and if the 
-second event is related to a third event by [hb'], then the first and the 
-third event are related by [hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if a first event is related to a second event by the communication relation, and if the second event is related to a third event by [com'], then the first and the third event are related by [com'] *)
 
-Lemma hb_seq_hb'_implies_hb' :
+Lemma com_seq_com'_implies_com':
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X x y ->
-  hb' E X y z ->
-  hb' E X x z.
+  com E X x y ->
+  com' E X y z ->
+  com' E X x z.
 Proof.
 intros E X x y z Hwf Hvalid Hxy Hyz.
 inversion Hyz as [Hhb_wsrf | Hfrrf].
   inversion Hhb_wsrf as [Hhb | Hwsrf].
-    eapply hb_seq_hb_implies_hb'; [apply Hwf | apply Hvalid | apply Hxy | apply Hhb].
-    eapply hb_seq_ws_rf_implies_hb'; [apply Hwf | apply Hvalid | apply Hxy | apply Hwsrf].
-    eapply hb_seq_fr_rf_implies_hb'; [apply Hvalid | apply Hxy | apply Hfrrf].
+    eapply com_seq_com_implies_com'; [apply Hwf | apply Hvalid | apply Hxy | apply Hhb].
+    eapply com_seq_ws_rf_implies_com'; [apply Hwf | apply Hvalid | apply Hxy | apply Hwsrf].
+    eapply com_seq_fr_rf_implies_com'; [apply Hvalid | apply Hxy | apply Hfrrf].
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if a
-first event is related to a second event by the sequence of write 
-seralization and read-from, and if the second event is related to a third
-event by happens-before, then the first and the third event are related by
-[hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if a first event is related to a second event by the sequence of write seralization and read-from, and if the second event is related to a third event by the communication relation, then the first and the third event are related by [com'] *)
 
-Lemma ws_rf_seq_hb_implies_hb' :
+Lemma ws_rf_seq_com_implies_com' :
   forall E X x y z,
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
   rel_seq (ws X) (rf X) x y ->
-  hb E X y z ->
-  hb' E X x z.
+  com E X y z ->
+  com' E X x z.
 Proof.
 intros E X x y z [Hwswf Hrfwf] Hxy Hyz.
 inversion Hyz as [Hrf_fr_yz | Hws_yz].
@@ -1858,25 +1841,21 @@ inversion Hyz as [Hrf_fr_yz | Hws_yz].
     rewrite Hwy in Hry; inversion Hry.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if a
-first event is related to a second event by the sequence of write 
-seralization and read-from, and if the second event is related to a third
-event by [hb'], then the first and the third event are related by
-[hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if a first event is related to a second event by the sequence of write seralization and read-from, and if the second event is related to a third event by [com'], then the first and the third event are related by [com'] *)
 
-Lemma ws_rf_seq_hb'_implies_hb' :
+Lemma ws_rf_seq_com'_implies_com' :
   forall E X x y z,
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
   rel_seq (ws X) (rf X) x y ->
-  hb' E X y z ->
-  hb' E X x z.
+  com' E X y z ->
+  com' E X x z.
 Proof.
 intros E X x y z Hvalid Hxy Hyz.
 generalize Hvalid; intros [Hwswf Hrfwf].
 inversion Hyz as [Hhb_wsrf_yz | Hfrrf_yz].
   inversion Hhb_wsrf_yz as [Hhb_yz | Hwsrf_yz].
-    eapply ws_rf_seq_hb_implies_hb'; [apply Hvalid | apply Hxy | apply Hhb_yz].
+    eapply ws_rf_seq_com_implies_com'; [apply Hvalid | apply Hxy | apply Hhb_yz].
     destruct Hxy as [? [Hws_x Hrf_y]].
     destruct Hwsrf_yz as [? [Hws_y Hrf_z]].
     destruct Hrfwf as [? [Hrf_cands ?]].
@@ -1892,19 +1871,16 @@ inversion Hyz as [Hhb_wsrf_yz | Hfrrf_yz].
     left; right; exists x1; split; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if a
-first event is related to a second event by the sequence of read-from and
-from-read, and if the second event is related to a third event by 
-happens-before, then the first and the third event are related by [hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if a first event is related to a second event by the sequence of read-from and from-read, and if the second event is related to a third event by the communication relation, then the first and the third event are related by [com'] *)
 
-Lemma fr_rf_seq_hb_implies_hb' :
+Lemma fr_rf_seq_com_implies_com' :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
   rel_seq (fr E X) (rf X) x y ->
-  hb E X y z ->
-  hb' E X x z.
+  com E X y z ->
+  com' E X x z.
 Proof.
 intros E X x y z Hwf [Hwswf Hrfwf] Hxy Hyz.
 inversion Hyz as [Hrf_fr_yz | Hws_yz].
@@ -1929,26 +1905,25 @@ inversion Hyz as [Hrf_fr_yz | Hws_yz].
     rewrite Hwy in Hry; inversion Hry.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, the
-[hb'] relation is transitive *)
+(** In a well-formed event structure with a well-formed execution witness, the [com'] relation is transitive *)
 
-Lemma hb'_trans :
+Lemma com'_trans :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb' E X x y ->
-  hb' E X y z ->
-  hb' E X x z.
+  com' E X x y ->
+  com' E X y z ->
+  com' E X x z.
 Proof.
 intros E X x y z Hwf Ha Hxy Hyz.
 inversion Hxy as [Hpxy | Hfrrf_xy];
 inversion Hyz as [Hpyz | Hfrrf_yz].
   inversion Hpxy as [Hhb_xy | Hwsfr_xy];
   inversion Hpyz as [Hhb_yz | Hwsfr_yz].
-    eapply hb_seq_hb_implies_hb'; [apply Hwf | apply Ha | apply Hhb_xy | apply Hhb_yz].
-    eapply hb_seq_ws_rf_implies_hb'; [apply Hwf | apply Ha | apply Hhb_xy | apply Hwsfr_yz].
-    eapply ws_rf_seq_hb_implies_hb'; [apply Ha | apply Hwsfr_xy | apply Hhb_yz].
+    eapply com_seq_com_implies_com'; [apply Hwf | apply Ha | apply Hhb_xy | apply Hhb_yz].
+    eapply com_seq_ws_rf_implies_com'; [apply Hwf | apply Ha | apply Hhb_xy | apply Hwsfr_yz].
+    eapply ws_rf_seq_com_implies_com'; [apply Ha | apply Hwsfr_xy | apply Hhb_yz].
     destruct Hwsfr_xy as [? [Hws_x Hrf_y]];
     destruct Hwsfr_yz as [? [Hws_y Hrf_z]].
     destruct Ha as [Hwswf Hrfwf].
@@ -1957,7 +1932,7 @@ inversion Hyz as [Hpyz | Hfrrf_yz].
     generalize (dom_ws_is_write E X y x1 Hwswf Hws_y); intros [? [? Hwy]].
     rewrite Hwy in Hry; inversion Hry.
   inversion Hpxy as [Hhb_xy | Hwsfr_xy].
-    eapply hb_seq_fr_rf_implies_hb'; [apply Ha | apply Hhb_xy | apply Hfrrf_yz].
+    eapply com_seq_fr_rf_implies_com'; [apply Ha | apply Hhb_xy | apply Hfrrf_yz].
     destruct Hfrrf_yz as [wz [Hfr_y Hrf_z]];
     destruct Hwsfr_xy as [wy1 [Hws_x Hrf_y1]].
      destruct Hfr_y as [? [? [wy2 [Hrf_y2 Hws_wz]]]].
@@ -1967,7 +1942,7 @@ inversion Hyz as [Hpyz | Hfrrf_yz].
      generalize (ws_trans E X x wy1 wz Hwswf Hws_x Hws_wz); intro Hws_xwz.
      left; right; exists wz; split; auto.
   inversion Hpyz as [Hhb_yz | Hwsfr_yz].
-    eapply fr_rf_seq_hb_implies_hb'; [apply Hwf | apply Ha | apply Hfrrf_xy | apply Hhb_yz].
+    eapply fr_rf_seq_com_implies_com'; [apply Hwf | apply Ha | apply Hfrrf_xy | apply Hhb_yz].
     destruct Hfrrf_xy as [? [Hfr_x Hrf_y]].
     destruct Hwsfr_yz as [? [Hws_y Hrf_z]].
     destruct Ha as [Hwswf Hrfwf].
@@ -1989,15 +1964,12 @@ inversion Hyz as [Hpyz | Hfrrf_yz].
      right; exists wz; split; auto.
 Qed.
 
-(** If a first event is related to a second event by the sequence of [hb']
-and of program order, and if the second event is related to a third event by
-the pre-hexa of [hb'] and program order, then the first event is related to
-the third event by the pre-hexa of hb' and program order *)
+(** If a first event is related to a second event by the sequence of [com'] and of program order, and if the second event is related to a third event by the pre-hexa of [com'] and program order, then the first event is related to the third event by the pre-hexa of [com'] and program order *)
 
 Lemma pre_hexa_rel_seq_left :
   forall E X x y z,
   pre_hexa E X x y ->
-  rel_seq (hb' E X) (po_iico E) y z ->
+  rel_seq (com' E X) (po_iico E) y z ->
   pre_hexa E X x z.
 Proof.
 intros E X x y z Hhx_xy Hseq_yz.
@@ -2006,7 +1978,7 @@ inversion Hhx_xy as [Htc_xy | Heq_xy].
   subst; left; apply trc_step; apply Hseq_yz.
 Qed.
 
-(** The pre-hexa of [hb'] and program order is transitive *)
+(** The pre-hexa of [com'] and program order is transitive *)
 
 Lemma pre_hexa_trans :
   forall E X x y z,
@@ -2023,8 +1995,7 @@ inversion Hyz as [Htc_yz | Heq_yz].
   right; subst; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, the
-hexa of [hb'] and program order is transitive *)
+(** In a well-formed event structure with a well-formed execution witness, the hexa of [com'] and program order is transitive *)
 
 Lemma hexa_trans :
   forall E X x y z,
@@ -2035,9 +2006,9 @@ Lemma hexa_trans :
   hexa E X x y.
 Proof.
 intros E X x y z Hwf Hvalid Hxz Hzy.
-assert (trans (hb' E X)) as Htr_hb'.
+assert (trans (com' E X)) as Htr_hb'.
   unfold trans; intros e1 e2 e3 H12 H23.
-eapply hb'_trans; [apply Hwf | apply Hvalid | apply H12 | apply H23].
+eapply com'_trans; [apply Hwf | apply Hvalid | apply H12 | apply H23].
 assert (trans (po_iico E)) as Htr_po.
   unfold trans; intros e1 e2 e3 H12 H23.
 eapply po_trans; [apply Hwf | apply H12 | apply H23].
@@ -2047,70 +2018,64 @@ unfold hexa in * |- *.
   apply (Htr_hx x z y Hxz Hzy).
 Qed.
 
-(** The definition [hexa] corresponds to the application of [hx], the hexa 
-function of the util file, to hb' and the program order *)
+(** The definition [hexa] corresponds to the application of [hx], the hexa function of the util file, to [com'] and the program order *)
 
 Lemma hx_hexa :
   forall E X,
-  hexa E X = hx (hb' E X) (po_iico E).
+  hexa E X = hx (com' E X) (po_iico E).
 Proof.
 intros E X.
 unfold hexa; unfold hx; unfold maybe_po; unfold phx;
   unfold pre_hexa; unfold maybe_hb'; unfold maybe; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if
-two events are related by the transitive closure of the union of the
-happens-before relation and of the program order, then they are also related by
-the hexa of hb' and of the program order *)
+(** In a well-formed event structure with a well-formed execution witness, if two events are related by the transitive closure of the union of the communication relation and of the program order, then they are also related by the hexa of [com'] and of the program order *)
 
-Lemma hb_po_implies_hexa_path : (*1*)
+Lemma com_po_implies_hexa_path : (*1*)
   forall E X x y,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (tc (rel_union (hb E X) (po_iico E)) x y)->
+  (tc (rel_union (com E X) (po_iico E)) x y)->
   (hexa E X) x y.
 Proof.
 intros E X x y Hwf Hvalid Hin.
 rewrite (hx_hexa E X).
 eapply union_implies_hexa_path.
-unfold trans; intros x1 x2 x3 H12 H23; apply hb'_trans with x2; auto.
+unfold trans; intros x1 x2 x3 H12 H23; apply com'_trans with x2; auto.
 unfold trans; intros x1 x2 x3 H12 H23; apply po_trans with x2; auto.
 intros e1 e2 H12; left; left; apply H12.
 exact Hin.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, the
-union of happens-before and of the program order is irreflexive. *)
+(** In a well-formed event structure with a well-formed execution witness, the union of the communication relation and of the program order is irreflexive. *)
 
 Lemma ac_u :
   forall E X,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  ~(exists x, rel_union (hb E X) (po_iico E) x x).
+  ~(exists x, rel_union (com E X) (po_iico E) x x).
 unfold not;
 intros E X Hwf Hs [x Hx].
 inversion Hx as [Hhb | Hpo].
-  generalize (hb_ac Hs Hhb); trivial.
+  generalize (com_ac Hs Hhb); trivial.
   generalize (po_ac Hwf Hpo); trivial.
 Qed.
 
-(** With a well-formed execution witness, the [hb'] relation is irreflexive.
-Since it is also transitive, it is acyclic *)
+(** With a well-formed execution witness, the [com'] relation is irreflexive. Since it is also transitive, it is acyclic *)
 
-Lemma hb'_ac :
+Lemma com'_ac :
   forall E X x,
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  ~(hb' E X x x).
+  ~(com' E X x x).
 Proof.
 unfold not;
 intros E X x Hs Hx.
 inversion Hx as [Hpx | Hfrrf].
   inversion Hpx as [Hhb | Hwsrf].
-    generalize Hhb; fold (~(hb E X x x)); eapply hb_ac.
+    generalize Hhb; fold (~(com E X x x)); eapply com_ac.
       auto.
     destruct Hwsrf as [? [Hws Hrf]].
     destruct Hs as [Hwswf [? [Hrf_cands ?]]].
@@ -2128,27 +2093,27 @@ Qed.
 
 (** In a well-formed event structure with a well-formed execution witness, if:
 
-- The relation happens-before orders a first event to a second event
-- The hexa of [hb'] and program order relates the second event to the first 
+- The communication relation orders a first event to a second event
+- The hexa of [com'] and program order relates the second event to the first 
 event
 
-Then, there is a cycle in the sequence of [hb'] and of the program order *)
+Then, there is a cycle in the sequence of [com'] and of the program order *)
 
-Lemma hb_hexa :
+Lemma com_hexa :
   forall E X x z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X x z ->
+  com E X x z ->
   hexa E X z x ->
-  exists y : Event, tc (rel_seq (hb' E X) (po_iico E)) y y.
+  exists y : Event, tc (rel_seq (com' E X) (po_iico E)) y y.
 Proof.
 intros E X x z Hwf Hvalid Hhb_xz Hhx_zx.
 eapply r1_hexa.
 unfold not; intros [e Hhb].
-generalize (hb'_ac); intro thm; unfold not in thm; apply (thm E X e Hvalid Hhb).
+generalize (com'_ac); intro thm; unfold not in thm; apply (thm E X e Hvalid Hhb).
 intros e1 e2 H12; left; left; apply H12.
-unfold trans; intros; eapply hb'_trans; auto.
+unfold trans; intros; eapply com'_trans; auto.
   apply H. apply H0.
 unfold trans; intros; eapply po_trans; auto.
   apply H. apply H0.
@@ -2159,10 +2124,9 @@ Qed.
 (** In a well-formed event structure with a well-formed execution witness, if:
 
 - The program order orders a first event to a second event
-- The hexa of [hb'] and program order relates the second event to the first
-event
+- The hexa of [com'] and program order relates the second event to the first event
 
-Then, there is a cycle in the sequence of [hb'] and of the program order *)
+Then, there is a cycle in the sequence of [com'] and of the program order *)
 
 Lemma hexa_po :
   forall E X x z,
@@ -2171,7 +2135,7 @@ Lemma hexa_po :
   rfmaps_well_formed E (events E) (rf X) ->
   hexa E X x z ->
   (po_iico E) z x ->
-  exists y : Event, tc (rel_seq (hb' E X) (po_iico E)) y y.
+  exists y : Event, tc (rel_seq (com' E X) (po_iico E)) y y.
 Proof.
 intros E X x z Hwf Hvalid Hhx_xz Hpo_zx.
 eapply hexa_r.
@@ -2184,18 +2148,15 @@ apply Hhx_xz.
 apply Hpo_zx.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if
-the union of the happens-before relation and of the program order contains a
-cycle, then there is a cycle in the transitive closure of the sequence of [hb']
-and of [hb'] *)
+(** In a well-formed event structure with a well-formed execution witness, if the union of the communication relation and of the program order contains a cycle, then there is a cycle in the transitive closure of the sequence of [com'] and of [com'] *)
 
-Lemma hb_union_po_cycle_implies_hb'_seq_po_cycle : (*2*)
+Lemma com_union_po_cycle_implies_com'_seq_po_cycle : (*2*)
   forall E X x,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (tc (rel_union (hb E X) (po_iico E))) x x ->
-  (exists y, (tc (rel_seq (hb' E X) (po_iico E))) y y).
+  (tc (rel_union (com E X) (po_iico E))) x x ->
+  (exists y, (tc (rel_seq (com' E X) (po_iico E))) y y).
 Proof.
 intros E X x Hwf Hvalid Hc.
 eapply union_cycle_implies_seq_cycle.
@@ -2203,8 +2164,8 @@ apply (ac_u Hwf Hvalid).
 unfold not; intros [e Hpo].
 generalize (po_ac); intro thm; unfold not in thm; apply (thm E e Hwf Hpo).
 unfold not; intros [e Hhb].
-generalize (hb'_ac); intro thm; unfold not in thm; apply (thm E X e Hvalid Hhb).
-unfold trans; intros; eapply hb'_trans; auto.
+generalize (com'_ac); intro thm; unfold not in thm; apply (thm E X e Hvalid Hhb).
+unfold trans; intros; eapply com'_trans; auto.
   apply H. apply H0.
 unfold trans; intros; eapply po_trans; auto.
   apply H. apply H0.
@@ -2212,8 +2173,7 @@ left; left; auto.
 apply Hc.
 Qed.
 
-(** In a well-formed event structure, the preserved program order is
-irreflexive *)
+(** In a well-formed event structure, the preserved program order is irreflexive *)
 
 Lemma ppo_ac :
   forall E x,
@@ -2227,29 +2187,26 @@ generalize (A.ppo_valid Hppo); intro Hpo_iico.
 apply (po_ac Hwf Hpo_iico).
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, the
-union of happens-before and preserved program order is irreflexive *)
+(** In a well-formed event structure with a well-formed execution witness, the union of the communication relation and of the preserved program order is irreflexive *)
 
 Lemma ac_u_ppo :
   forall E X,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  ~(exists x, rel_union (hb E X) (ppo E) x x).
+  ~(exists x, rel_union (com E X) (ppo E) x x).
 unfold not;
 intros E X Hwf Hvalid [x Hx].
 inversion Hx as [Hhb | Hpo].
-  generalize (hb_ac Hvalid Hhb); trivial.
+  generalize (com_ac Hvalid Hhb); trivial.
   generalize (ppo_ac Hwf Hpo); trivial.
 Qed.
 
-(** The [mhb] relation (happens-before restricted to the global read-from 
-relation i.e. the union of global read-from, from-read and write serialization)
-is included in the happens-before relation *)
+(** The [mhb] relation (communication restricted to the global read-from relation i.e. the union of global read-from, from-read and write serialization) is included in the communication relation *)
 
-Lemma mhb_in_hb :
+Lemma mhb_in_com:
   forall E X,
-  rel_incl (mhb E X) (hb E X).
+  rel_incl (mhb E X) (com E X).
 Proof.
 case_eq inter; case_eq intra; intros Hinter Hintra;
 unfold mhb; rewrite Hinter; rewrite Hintra; intros E X x y Hxy.
@@ -2285,8 +2242,8 @@ Lemma mhb_ac :
 Proof.
 unfold not;
 intros E X x Hs Hx.
-generalize (mhb_in_hb E X x x Hx); intro Hhb.
-apply (hb_ac Hs Hhb).
+generalize (mhb_in_com E X x x Hx); intro Hhb.
+apply (com_ac Hs Hhb).
 Qed.
 
 (** In a well-formed event structure with a well-formed execution witness, the
@@ -3211,11 +3168,11 @@ generalize (mhb'_dec Hwf Hs Hyz); intro Horyz.
       apply Hfrsxy. apply Hfrsyz.
 Qed.
 
-(** [mhb'] is always included in [hb']. *)
+(** [mhb'] is always included in [com']. *)
 
 Lemma mhb'_in_hb' :
   forall E X,
-  rel_incl (mhb' E X) (hb' E X).
+  rel_incl (mhb' E X) (com' E X).
 Proof.
 case_eq inter; case_eq intra; intros Hinter Hintra; unfold mhb';
 unfold mrf; unfold mhb; unfold mrfi; unfold mrfe;
@@ -3277,7 +3234,7 @@ Proof.
 unfold not;
 intros E X x Hvalid Hx.
 generalize (mhb'_in_hb' Hx); intro Hhb.
-apply (hb'_ac Hvalid Hhb).
+apply (com'_ac Hvalid Hhb).
 Qed.
 
 (** In a well-formed event structure with a well-formed execution witness, the
@@ -3399,32 +3356,29 @@ Definition po_tso (E:Event_struct) : Rln Event :=
   fun e1 => fun e2 => (po_iico E) e1 e2 /\
     (reads E e1 \/ (writes E e1 /\ writes E e2)).
 
-(** We define the hb relation as the union of [ws], [fr] and [fr_inter]. In 
-other words, only the subset of read-from where the read and the write occur on
-a different processor is considered global *)
+(** We define the communication relation as the union of [ws], [fr] and [fr_inter]. In other words, only the subset of read-from where the read and the write occur on a different processor is considered global *)
 
-Definition hb_tso (E:Event_struct) (X:Execution_witness) : Rln Event :=
+Definition com_tso (E:Event_struct) (X:Execution_witness) : Rln Event :=
   rel_union (rel_union (ws X) (fr E X)) (rf_inter X).
 
-(** [hb'_tso] corresponds to [hb'] except we consider only inter-threads
+(** [com'_tso] corresponds to [com'] except we consider only inter-threads
 read-from pairs of related elements. It is the union of:
 
-- [hb_tso]
+- [com_tso]
 - The sequence of write serialization and [rf_inter]
 - The sequence of from-read and [rf_inter] *)
 
-Definition hb'_tso (E:Event_struct) (X:Execution_witness) : Rln Event :=
-  rel_union (rel_union (hb_tso E X) (rel_seq (ws X) (rf_inter X)))
+Definition com'_tso (E:Event_struct) (X:Execution_witness) : Rln Event :=
+  rel_union (rel_union (com_tso E X) (rel_seq (ws X) (rf_inter X)))
   (rel_seq (fr E X) (rf_inter X)).
 
-(** In a well-formed event structure, [hb_tso] is included in the happens-before
-relation *)
+(** In a well-formed event structure, [com_tso] is included in the communication relation *)
 
-Lemma hb_tso_in_hb :
+Lemma com_tso_in_com:
   forall E X x y,
   well_formed_event_structure E ->
-  hb_tso E X x y ->
-  hb E X x y.
+  com_tso E X x y ->
+  com E X x y.
 Proof.
 intros E X x y Hwf Hxy.
 inversion Hxy as [Hws_fr | Hrf].
@@ -3434,54 +3388,51 @@ inversion Hxy as [Hws_fr | Hrf].
     destruct Hrf; left; left; auto.
 Qed.
 
-(** In a well-formed event structure, the domain and the range of the union of
-[po_tso] and [hb_tso] are included in the domain and range of the union of
-happens-before and of the program order *)
+(** In a well-formed event structure, the domain and the range of the union of [po_tso] and [com_tso] are included in the domain and range of the union of the communication relation and of the program order *)
 
-Lemma po_hb_tso_in_po_hb :
+Lemma po_com_tso_in_po_com :
   forall E X,
   well_formed_event_structure E ->
-  Included _ (udr (rel_union (po_tso E) (hb_tso E X)))
-    (udr (rel_union (po_iico E) (hb E X))).
+  Included _ (udr (rel_union (po_tso E) (com_tso E X)))
+    (udr (rel_union (po_iico E) (com E X))).
 Proof.
 intros E X Hwf x Hx.
   inversion Hx as [e Hd | e Hr].
     destruct Hd as [y Hord]; unfold udr; apply incl_union_left_in; exists y.
       inversion Hord as [Hpo | Hhb].
         left; destruct Hpo; auto.
-        right; apply (hb_tso_in_hb Hwf Hhb).
+        right; apply (com_tso_in_com Hwf Hhb).
     destruct Hr as [y Horr]; unfold udr; apply incl_union_right_in; exists y.
       inversion Horr as [Hpo | Hhb].
         left; destruct Hpo; auto.
-        right; apply (hb_tso_in_hb Hwf Hhb).
+        right; apply (com_tso_in_com Hwf Hhb).
 Qed.
 
-(** In a well-formed event structure, [hb'_tso] is included in [hb']. *)
+(** In a well-formed event structure, [com'_tso] is included in [com']. *)
 
-Lemma hb'_tso_in_hb' :
+Lemma com'_tso_in_com' :
   forall E X x y,
   well_formed_event_structure E ->
-  hb'_tso E X x y ->
-  hb' E X x y.
+  com'_tso E X x y ->
+  com' E X x y.
 Proof.
 intros E X x y Hwf Hxy.
 inversion Hxy as [Hhb_wsrf | Hrf_fr].
   inversion Hhb_wsrf as [Hhb | Hws_rf].
-  left; left; apply hb_tso_in_hb; auto.
+  left; left; apply com_tso_in_com; auto.
   left; right; destruct Hws_rf as [z [Hws Hrf]]; exists z; split;
   destruct Hrf; auto.
   right; destruct Hrf_fr as [z [Hfr Hrf]]; exists z; split;
   destruct Hrf; auto.
 Qed.
 
-(** In a well-formed event structure, two events related by [hb_tso] are also
-related by [hb'_tso] *)
+(** In a well-formed event structure, two events related by [com_tso] are also related by [com'_tso] *)
 
-Lemma hb_tso_in_hb'_tso :
+Lemma com_tso_in_com'_tso :
   forall E X x y,
   well_formed_event_structure E ->
-  hb_tso E X x y ->
-  hb'_tso E X x y.
+  com_tso E X x y ->
+  com'_tso E X x y.
 Proof.
 intros E X x y Hwf Hxy.
 inversion Hxy as [Hws_fr | Hrf].
@@ -3491,8 +3442,7 @@ inversion Hxy as [Hws_fr | Hrf].
     destruct Hrf; left; left; auto.
 Qed.
 
-(** In a well-formed event structure, the TSO preserved program order is a
-transitive relation *)
+(** In a well-formed event structure, the TSO preserved program order is a transitive relation *)
 
 Lemma po_tso_trans :
   forall E x y z,
@@ -3531,38 +3481,34 @@ inversion Hyz as [Hpo_yz | Hiico_yz].
       right; destruct H0; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, the
-union of the TSO happens-before and of the TSO program order is irreflexive *)
+(** In a well-formed event structure with a well-formed execution witness, the union of the TSO communication relation and of the TSO program order is irreflexive *)
 
 Lemma ac_u_tso :
   forall E X,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  ~(exists x, rel_union (hb_tso E X) (po_tso E) x x).
+  ~(exists x, rel_union (com_tso E X) (po_tso E) x x).
 unfold not;
 intros E X Hwf Hvalid [x Hx].
 inversion Hx as [Hhb | Hpo].
-    assert (hb E X x x) as Hin.
-      apply hb_tso_in_hb; auto.
-  generalize (hb_ac Hvalid Hin); trivial.
+    assert (com E X x x) as Hin.
+      apply com_tso_in_com; auto.
+  generalize (com_ac Hvalid Hin); trivial.
     destruct Hpo as [Hpo ?].
   generalize (po_ac Hwf Hpo); trivial.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if
-[hb_tso] relates a first event to a second event, and if [hb_tso] relates the
-second event to a third event. Then [hb'_tso] relates the first element to the
-third element *)
+(** In a well-formed event structure with a well-formed execution witness, if [com_tso] relates a first event to a second event, and if [com_tso] relates the second event to a third event. Then [com'_tso] relates the first element to the third element *)
 
-Lemma hb_tso_seq_hb_tso_implies_hb'_tso :
+Lemma com_tso_seq_com_tso_implies_com'_tso :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb_tso E X x y ->
-  hb_tso E X y z ->
-  hb'_tso E X x z.
+  com_tso E X x y ->
+  com_tso E X y z ->
+  com'_tso E X x z.
 Proof.
 intros E X x y z Hwf [Hwswf Hrfwf] Hxy Hyz.
 inversion Hxy as [Hws_fr_xy | Hrf_xy];
@@ -3611,19 +3557,16 @@ inversion Hyz as [Hws_fr_yz | Hrf_yz].
     rewrite Hwy in Hry; inversion Hry.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if
-[hb_tso] relates a first event to a second event, and if the sequence of write
-serialiazation and of inter-threads read-from relates the second event to a 
-third event. Then [hb'_tso] relates the first element to the third element *)
+(** In a well-formed event structure with a well-formed execution witness, if [com_tso] relates a first event to a second event, and if the sequence of write serialiazation and of inter-threads read-from relates the second event to a  third event. Then [com'_tso] relates the first element to the third element *)
 
-Lemma hb_tso_seq_ws_rf_implies_hb'_tso :
+Lemma com_tso_seq_ws_rf_implies_com'_tso :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb_tso E X x y ->
+  com_tso E X x y ->
   rel_seq (ws X) (rf_inter X) y z ->
-  hb'_tso E X x z.
+  com'_tso E X x z.
 Proof.
 intros E X x y z Hwf [Hwswf Hrfwf] Hxy Hyz.
 inversion Hxy as [Hws_fr_xy | Hrf_xy].
@@ -3647,18 +3590,15 @@ inversion Hxy as [Hws_fr_xy | Hrf_xy].
     rewrite Hwy in Hry; inversion Hry.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if
-the sequence of write serialization and of the intra-threads read-from relates a
-first event to a second event, and if [hb_tso] relates the second event to a 
-third event. Then [hb'_tso] relates the first element to the third element *)
+(** In a well-formed event structure with a well-formed execution witness, if the sequence of write serialization and of the intra-threads read-from relates a first event to a second event, and if [com_tso] relates the second event to a third event. Then [com'_tso] relates the first element to the third element *)
 
-Lemma ws_rf_seq_hb_tso_implies_hb'_tso :
+Lemma ws_rf_seq_com_tso_implies_com'_tso :
   forall E X x y z,
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
   rel_seq (ws X) (rf_inter X) x y ->
-  hb_tso E X y z ->
-  hb'_tso E X x z.
+  com_tso E X y z ->
+  com'_tso E X x z.
 Proof.
 intros E X x y z [Hwswf Hrfwf] Hxy Hyz.
 inversion Hyz as [Hws_fr_yz | Hrf_yz].
@@ -3686,18 +3626,15 @@ inversion Hyz as [Hws_fr_yz | Hrf_yz].
     rewrite Hwy in Hry; inversion Hry.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if
-[hb_tso] relates a first event to a second event, and if the sequence of from-
-read and of inter-threads read-from relates the second event to a 
-third event. Then [hb'_tso] relates the first element to the third element *)
+(** In a well-formed event structure with a well-formed execution witness, if [com_tso] relates a first event to a second event, and if the sequence of from-read and of inter-threads read-from relates the second event to a third event. Then [com'_tso] relates the first element to the third element *)
 
-Lemma hb_tso_seq_fr_rf_implies_hb'_tso :
+Lemma com_tso_seq_fr_rf_implies_com'_tso :
   forall E X x y z,
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb_tso E X x y ->
+  com_tso E X x y ->
   rel_seq (fr E X) (rf_inter X) y z ->
-  hb'_tso E X x z.
+  com'_tso E X x z.
 Proof.
 intros E X x y z [Hwswf Hrfwf] Hxy Hyz.
 inversion Hxy as [Hws_fr_xy | Hrf_xy].
@@ -3721,19 +3658,16 @@ inversion Hxy as [Hws_fr_xy | Hrf_xy].
     left; right; exists wz; split; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if
-the sequence of from-read and of read-from relates a first event to a second 
-event, and if [hb_tso] relates the second event to a third event. Then [hb'_tso]
-relates the first element to the third element *)
+(** In a well-formed event structure with a well-formed execution witness, if the sequence of from-read and of read-from relates a first event to a second event, and if [com_tso] relates the second event to a third event. Then [com'_tso] relates the first element to the third element *)
 
-Lemma fr_rf_seq_hb_tso_implies_hb'_tso :
+Lemma fr_rf_seq_com_tso_implies_com'_tso :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
   rel_seq (fr E X) (rf X) x y ->
-  hb_tso E X y z ->
-  hb'_tso E X x z.
+  com_tso E X y z ->
+  com'_tso E X x z.
 Proof.
 intros E X x y z Hwf [Hwswf Hrfwf] Hxy Hyz.
 inversion Hyz as [Hws_fr_yz | Hrf_yz].
@@ -3761,26 +3695,25 @@ inversion Hyz as [Hws_fr_yz | Hrf_yz].
     rewrite Hwy in Hry; inversion Hry.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, the
-[hb'_tso] relation is transitive *)
+(** In a well-formed event structure with a well-formed execution witness, the [com'_tso] relation is transitive *)
 
-Lemma hb'_tso_trans :
+Lemma com'_tso_trans :
   forall E X x y z,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb'_tso E X x y ->
-  hb'_tso E X y z ->
-  hb'_tso E X x z.
+  com'_tso E X x y ->
+  com'_tso E X y z ->
+  com'_tso E X x z.
 Proof.
 intros E X x y z Hwf Hvalid Hxy Hyz.
 inversion Hxy as [Hpxy | Hfrrf_xy];
 inversion Hyz as [Hpyz | Hfrrf_yz].
   inversion Hpxy as [Hhb_xy | Hwsfr_xy];
   inversion Hpyz as [Hhb_yz | Hwsfr_yz].
-    eapply hb_tso_seq_hb_tso_implies_hb'_tso; [apply Hwf | apply Hvalid | apply Hhb_xy | apply Hhb_yz].
-    eapply hb_tso_seq_ws_rf_implies_hb'_tso; [apply Hwf | apply Hvalid | apply Hhb_xy | apply Hwsfr_yz ].
-    eapply ws_rf_seq_hb_tso_implies_hb'_tso; [apply Hvalid | apply Hwsfr_xy | apply Hhb_yz].
+    eapply com_tso_seq_com_tso_implies_com'_tso; [apply Hwf | apply Hvalid | apply Hhb_xy | apply Hhb_yz].
+    eapply com_tso_seq_ws_rf_implies_com'_tso; [apply Hwf | apply Hvalid | apply Hhb_xy | apply Hwsfr_yz ].
+    eapply ws_rf_seq_com_tso_implies_com'_tso; [apply Hvalid | apply Hwsfr_xy | apply Hhb_yz].
     destruct Hwsfr_xy as [? [Hws_x Hrf_y]];
     destruct Hwsfr_yz as [? [Hws_y Hrf_z]].
       destruct Hrf_y as [Hrf_y ?].
@@ -3789,7 +3722,7 @@ inversion Hyz as [Hpyz | Hfrrf_yz].
     generalize (dom_ws_is_write E X y x1 Hwswf Hws_y); intros [? [? Hwy]].
     rewrite Hwy in Hry; inversion Hry.
   inversion Hpxy as [Hhb_xy | Hwsfr_xy].
-    eapply hb_tso_seq_fr_rf_implies_hb'_tso; [apply Hvalid | apply Hhb_xy | apply Hfrrf_yz].
+    eapply com_tso_seq_fr_rf_implies_com'_tso; [apply Hvalid | apply Hhb_xy | apply Hfrrf_yz].
     destruct Hfrrf_yz as [wz [Hfr_y Hrf_z]];
     destruct Hwsfr_xy as [wy1 [Hws_x Hrf_y1]].
      destruct Hfr_y as [? [? [wy2 [Hrf_y2 Hws_wz]]]].
@@ -3800,7 +3733,7 @@ inversion Hyz as [Hpyz | Hfrrf_yz].
      generalize (ws_trans E X x wy1 wz Hwswf Hws_x Hws_wz); intro Hws_xwz.
      left; right; exists wz; split; auto.
   inversion Hpyz as [Hhb_yz | Hwsfr_yz].
-    eapply fr_rf_seq_hb_tso_implies_hb'_tso; [apply Hwf | apply Hvalid | (*apply Hfrrf_xy*) | apply Hhb_yz].
+    eapply fr_rf_seq_com_tso_implies_com'_tso; [apply Hwf | apply Hvalid | (*apply Hfrrf_xy*) | apply Hhb_yz].
       destruct Hfrrf_xy as [e [Hfr [Hrf ?]]]; exists e; split; auto.
     destruct Hfrrf_xy as [? [Hfr_x Hrf_y]].
     destruct Hwsfr_yz as [? [Hws_y Hrf_z]].
@@ -3824,18 +3757,15 @@ inversion Hyz as [Hpyz | Hfrrf_yz].
      right; exists wz; split; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if 
-there is a cycle in the union of the TSO happens-before and of the TSO preserved
-program order, then there is a cycle in the sequence of [hb'_tso] and of the TSO
-preserved program order *)
+(** In a well-formed event structure with a well-formed execution witness, if there is a cycle in the union of the TSO communication relation and of the TSO preserved program order, then there is a cycle in the sequence of [com'_tso] and of the TSO preserved program order *)
 
-Lemma hb_tso_union_po_tso_cycle_implies_hb'_tso_seq_po_tso_cycle :
+Lemma com_tso_union_po_tso_cycle_implies_com'_tso_seq_po_tso_cycle:
   forall E X x,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  (tc (rel_union (hb_tso E X) (po_tso E))) x x ->
-  (exists y, (tc (rel_seq (hb'_tso E X) (po_tso E))) y y).
+  (tc (rel_union (com_tso E X) (po_tso E))) x x ->
+  (exists y, (tc (rel_seq (com'_tso E X) (po_tso E))) y y).
 Proof.
 intros E X x Hwf Hvalid Hc.
 eapply union_cycle_implies_seq_cycle.
@@ -3844,9 +3774,9 @@ unfold not; intros [e Hpo].
 generalize (po_ac); intro thm; unfold not in thm; apply (thm E e Hwf).
   destruct Hpo; auto.
 unfold not; intros [e Hhb].
-generalize (hb'_ac); intro thm; unfold not in thm; apply (thm E X e Hvalid).
-apply hb'_tso_in_hb'; auto.
-unfold trans; intros; eapply hb'_tso_trans; auto.
+generalize (com'_ac); intro thm; unfold not in thm; apply (thm E X e Hvalid).
+apply com'_tso_in_com'; auto.
+unfold trans; intros; eapply com'_tso_trans; auto.
   apply H. apply H0.
 unfold trans; intros; eapply po_tso_trans; auto.
   apply H. apply H0.
@@ -3922,9 +3852,7 @@ intros x y Hxy; apply trc_step; apply Hxy.
 apply H.
 Qed.
 
-(** If a relation is included in its linear extension, the union of its domain
-and range is included in the union of the domain and range of its linear
-extension *)
+(** If a relation is included in its linear extension, the union of its domain and range is included in the union of the domain and range of its linear extension *)
 
 Lemma udr_r_in_udr_le :
   forall r x,
@@ -3937,16 +3865,14 @@ intros r x Hincl Hin; inversion Hin as [e Hd | e Hr]; [left | right].
   destruct Hr as [y Hr]; exists y; apply Hincl; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, two
-events related by the happens-before relation read or write from the same
-location *)
+(** In a well-formed event structure with a well-formed execution witness, two events related by the communication relation read or write from the same location *)
 
-Lemma hb_implies_same_loc :
+Lemma com_implies_same_loc :
   forall E X e1 e2,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X e1 e2 -> loc e1 = loc e2.
+  com E X e1 e2 -> loc e1 = loc e2.
 Proof.
 intros E X e1 e2 Hwf [Hwfws Hwfrf] Hhb;
 inversion Hhb as [Hrffr | Hws].
@@ -3956,21 +3882,19 @@ inversion Hhb as [Hrffr | Hws].
     eapply ws_implies_same_loc; [split; [apply Hwfws | apply Hwfrf] | apply Hws].
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, two
-events related by the [hb'] relation read or write from the same
-location *)
+(** In a well-formed event structure with a well-formed execution witness, two events related by the [com'] relation read or write from the same location *)
 
-Lemma hb'_implies_same_loc :
+Lemma com'_implies_same_loc :
   forall E X e1 e2,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb' E X e1 e2 -> loc e1 = loc e2.
+  com' E X e1 e2 -> loc e1 = loc e2.
 Proof.
 intros E X e1 e2 Hwf Hs Hhb';
 inversion Hhb' as [Hu | Hfrrf].
 inversion Hu as [Hhb | Hwsrf].
-  apply hb_implies_same_loc with E X; auto.
+  apply com_implies_same_loc with E X; auto.
   destruct Hwsrf as [e [Hws Hrf]].
     rewrite (ws_implies_same_loc X e1 e Hs Hws).
     apply rf_implies_same_loc2 with E X; auto.
@@ -3979,16 +3903,14 @@ inversion Hu as [Hhb | Hwsrf].
     apply rf_implies_same_loc2 with E X; auto.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, if 
-two events are related by the happens-before relation, at least one of them
-must be a write event *)
+(** In a well-formed event structure with a well-formed execution witness, if two events are related by the communication relation, at least one of them must be a write event *)
 
-Lemma hb_implies_writes :
+Lemma com_implies_writes :
   forall E X e1 e2,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X e1 e2 -> writes E e1 \/ writes E e2.
+  com E X e1 e2 -> writes E e1 \/ writes E e2.
 Proof.
   intros E X e1 e2 Hwf [Hwswf Hrfwf] Hhb.
   inversion Hhb as [Hrffr | Hws].
@@ -4010,15 +3932,14 @@ Proof.
       exists l; exists v; apply H2.
 Qed.
 
-(** In a well-formed event structure with a well-formed execution witness, two
-distinct events related by happens-before must be competing *)
+(** In a well-formed event structure with a well-formed execution witness, two distinct events related by the communication relation must be competing *)
 
-Lemma hb_implies_compete :
+Lemma com_implies_compete :
   forall E X e1 e2,
   well_formed_event_structure E ->
   write_serialization_well_formed (events E) (ws X) /\
   rfmaps_well_formed E (events E) (rf X) ->
-  hb E X e1 e2 /\ proc_of e1 <> proc_of e2 -> compete E e1 e2.
+  com E X e1 e2 /\ proc_of e1 <> proc_of e2 -> compete E e1 e2.
 Proof.
 unfold compete; intros E X e1 e2 Hwf [Hws Hrf] [Hhb Hp]; split; [|split; [|split; [|split]]].
   change (events E e1) with (In _ (events E) e1); eapply hb_domain_in_events; auto.
@@ -4027,10 +3948,10 @@ unfold compete; intros E X e1 e2 Hwf [Hws Hrf] [Hhb Hp]; split; [|split; [|split
   change (events E e2) with (In _ (events E) e2); eapply hb_range_in_events; auto.
     split; [apply Hws | apply Hrf].
     apply Hhb.
-  eapply hb_implies_same_loc; auto;
+  eapply com_implies_same_loc; auto;
     [apply Hwf | split; [apply Hws | apply Hrf] | apply Hhb].
   auto.
-  eapply hb_implies_writes;
+  eapply com_implies_writes;
     [apply Hwf | split; [apply Hws | apply Hrf] | apply Hhb].
 Qed.
 
@@ -4065,13 +3986,12 @@ intros e z Hn.
 apply NNPP; auto.
 Qed.
 
-(** Global happens-before is included in the union of happens-before, program
-order and barriers relation *)
+(** Global happens-before is included in the union of communication relation, program order and barriers relation *)
 
 Lemma ghb_in_union :
   forall E X,
   rel_incl (AWmm.ghb E X)
-    (rel_union (rel_union (hb E X) (po_iico E))
+    (rel_union (rel_union (com E X) (po_iico E))
               (A.abc E X)).
 Proof.
 intros E X e e0 Hghb; unfold ghb in Hghb.
@@ -4123,14 +4043,13 @@ case_eq inter; case_eq intra; intros Hintra Hinter;
           left; right; apply A.ppo_valid; apply Hppo.
 Qed.
 
-(** The transitive closure of global happens-before is included in the
-transitive closure of the union of happens-before, program order and barriers
+(** The transitive closure of global happens-before is included in the transitive closure of the union of communication relation, program order and barriers
 relation *)
 
 Lemma tc_ghb_in_union :
   forall E X,
   rel_incl (tc (AWmm.ghb E X))
-    (tc (rel_union (rel_union (hb E X) (po_iico E))
+    (tc (rel_union (rel_union (com E X) (po_iico E))
               (A.abc E X))).
 Proof.
 intros E X x y; apply tc_incl.
@@ -4259,8 +4178,7 @@ Qed.
 order of this event structure where:
 
 - its set of events has been restricted to its intersection with a set of events s
-- its program order has been restricted to pairs of related events both
-belonging to s
+- its program order has been restricted to pairs of related events both belonging to s
 
 Then these two events are also related by the program order of the unrestricted
 event structure *)

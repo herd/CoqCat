@@ -140,12 +140,10 @@ Proof.
 intros E X x y Hwf Hrf Hxy. inversion Hxy.
 Qed.
 
-(** Since the barrier relation is empty, it is trivially included in the
-transitive closure of the union of happens-before and program order for any
-event structure and any execution witness *)
+(** Since the barrier relation is empty, it is trivially included in the transitive closure of the union of communication relation and program order for any event structure and any execution witness *)
 
 Lemma ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 Proof.
 intros E X x y Hxy. inversion Hxy.
 Qed.
@@ -213,12 +211,10 @@ Proof.
 intros E X x y Hwf Hrf Hxy. inversion Hxy.
 Qed.
 
-(** Since the barrier relation is empty, it is trivially included in the
-transitive closure of the union of happens-before and program order for any
-event structure and any execution witness *)
+(** Since the barrier relation is empty, it is trivially included in the transitive closure of the union of communication relation and program order for any event structure and any execution witness *)
 
 Lemma ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 Proof.
 intros E X x y Hxy. inversion Hxy.
 Qed.
@@ -640,11 +636,10 @@ Hypothesis ab_evts : forall (E:Event_struct) (X:Execution_witness),
   rfmaps_well_formed E (events E) (rf X) ->
   abc E X x y -> In _ (events E) x /\ In _ (events E) y.
 
-(** For every execution, the barrier relation must be included in the transtive
-closure of the union of happens-before and program order *)
+(** For every execution, the barrier relation must be included in the transtive closure of the union of communication relation and program order *)
 
 Hypothesis ab_incl :
-  forall E X, rel_incl (abc E X) (tc (rel_union (hb E X) (po_iico E))).
+  forall E X, rel_incl (abc E X) (tc (rel_union (com E X) (po_iico E))).
 
 (* As in wmm, what this represents is not really clear, and it is used nowhere
 so I comment it, but we should eventually clarify what it means *)
@@ -1546,8 +1541,7 @@ generalize (ppo_valid Hppo); intro Hpo_iico.
 apply (po_ac Hwf Hpo_iico).
 Qed.
 
-(** With a well-formed execution witness, the [mhb] (happens-before with only 
-global read-froms) of A2n is irreflexive *)
+(** With a well-formed execution witness, the [mhb] (communication relation with only global read-froms) of A2n is irreflexive *)
 
 Lemma mhb_ac :
   forall E X,
@@ -1557,8 +1551,8 @@ Lemma mhb_ac :
 Proof.
 unfold not;
 intros E X Hs [x Hx].
-generalize (mhb_in_hb E X x x Hx); intro Hhb.
-apply (hb_ac Hs Hhb).
+generalize (mhb_in_com E X x x Hx); intro Hhb.
+apply (com_ac Hs Hhb).
 Qed.
 
 (** If A1 is weaker than A2, in a well-formed event structure with a well-formed
